@@ -1,0 +1,11 @@
+{
+  "format": "ocarina-patch-v1",
+  "title": "Bulle des touches — compatible anciennes versions",
+  "files": [
+    {
+      "path": "app.js",
+      "old": "'use strict';",
+      "new": "'use strict';\ndocument.addEventListener('DOMContentLoaded', () => {\n  if (document.getElementById('note-dialogue') || typeof showPlayedNote === 'function') return;\n  const style = document.createElement('style');\n  style.textContent = '#note-dialogue{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);width:min(1000px,calc(100% - 160px));padding:20px;border:2px solid #d8caa8;border-radius:24px;background:#17251ce8;color:#fff1ce;z-index:900;pointer-events:none;box-sizing:border-box}#note-history{display:flex;justify-content:flex-end;gap:14px;overflow:hidden;align-items:center;min-height:72px}#note-history span{display:flex;align-items:center;justify-content:center;flex:0 0 64px;height:64px;border:1px solid currentColor;border-radius:16px;background:#ffffff10;font:bold 36px Arial}@media(max-width:600px){#note-dialogue{width:calc(100% - 24px);bottom:84px}}';\n  document.head.appendChild(style);\n  const box = document.createElement('section');\n  box.id = 'note-dialogue';\n  box.setAttribute('aria-label', 'Touches jouées');\n  box.innerHTML = '<div style=\"font:12px Arial;letter-spacing:2px;margin-bottom:12px\">VOTRE MÉLODIE</div><div id=\"note-history\"></div>';\n  document.body.appendChild(box);\n  const history = box.querySelector('#note-history');\n  const original = input;\n  input = function(index) {\n    original(index);\n    const positions = new Map(Array.from(history.children, el => [el, el.getBoundingClientRect().left]));\n    const item = document.createElement('span');\n    item.textContent = ['L', 'R', '□', '△', '○'][index];\n    item.style.color = ['#e8dfc6', '#e8dfc6', '#e5a0c9', '#9ed9b1', '#f1a08e'][index];\n    history.appendChild(item);\n    while (history.children.length > 24) history.firstElementChild.remove();\n    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;\n    for (const el of history.children) {\n      const x = positions.has(el) ? positions.get(el) - el.getBoundingClientRect().left : 40;\n      el.animate?.([{transform: 'translateX(' + x + 'px)'}, {transform:'translateX(0)'}], {duration:240,easing:'ease-out'});\n    }\n  };\n});\n"
+    }
+  ]
+}
