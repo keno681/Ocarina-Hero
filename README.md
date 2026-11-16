@@ -57,3 +57,7 @@ Le moteur reste Electron : nous reprenons la console de blocs de modification, s
 ## Fond de Link (version 0.3.1)
 
 La capture fournie par l’utilisateur est intégrée sans retouche, en WebP sans perte, à ses dimensions originales (3840 × 1654). Les nouvelles installations disposent de l’image en local. Pour une installation existante avec la console Pokéball, `patches/fond-link.json` active le fond en chargeant cette même image depuis GitHub : une connexion Internet est alors nécessaire. Le bouton « Choisir le fond » reste disponible ; un fond personnalisé déjà enregistré prend priorité sur le fond par défaut.
+
+## Image seule (version 0.3.2)
+
+L’interface est masquée au lancement pour laisser le fond visible. Le bouton Options ouvre les réglages (fond, volume et manettes). Le bouton de fermeture ou Échap les masque. Le clavier et les manettes continuent à jouer lorsque les réglages sont fermés. La Pokéball reste disponible. Le patch `patches/interface-options.json` applique ce changement à une installation existante.

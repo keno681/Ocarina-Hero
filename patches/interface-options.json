@@ -1,0 +1,11 @@
+{
+  "format": "ocarina-patch-v1",
+  "title": "Image seule et bouton Options",
+  "files": [
+    {
+      "path": "app.js",
+      "old": "'use strict';",
+      "new": "'use strict';\ndocument.addEventListener('DOMContentLoaded', () => {\n  document.body.classList.add('scene-only');\n  const style = document.createElement('style');\n  style.textContent = `\n    body.scene-only{min-height:100vh}\n    .scene-only:not(.options-open) header,.scene-only:not(.options-open) main,\n    .scene-only footer,.scene-only .eyebrow,.scene-only h1,.scene-only .intro,\n    .scene-only .footnote,.scene-only .ocarina,.scene-only .keys,.scene-only .brand{display:none}\n    .scene-only.options-open header{padding-right:150px;justify-content:flex-start}\n    .scene-only.options-open main{padding-top:0}\n    #options-toggle{position:fixed;top:20px;right:20px;z-index:1000;padding:12px 20px;border:1px solid #d8caa8;border-radius:24px;background:#17251cdd;color:#fff1ce;font:14px Arial;cursor:pointer}\n  `;\n  document.head.appendChild(style);\n  const toggle = document.createElement('button');\n  toggle.id = 'options-toggle';\n  toggle.textContent = '⚙ Options';\n  toggle.setAttribute('aria-expanded', 'false');\n  function setOptions(open) {\n    document.body.classList.toggle('options-open', open);\n    toggle.setAttribute('aria-expanded', String(open));\n    toggle.textContent = open ? 'Fermer les options' : '⚙ Options';\n    if (!open) toggle.focus();\n  }\n  toggle.onclick = () => {\n    try { context(); } catch (_) {}\n    setOptions(!document.body.classList.contains('options-open'));\n  };\n  document.addEventListener('keydown', event => {\n    if (event.key === 'Escape' && document.body.classList.contains('options-open')) setOptions(false);\n  });\n  document.body.appendChild(toggle);\n});\n"
+    }
+  ]
+}

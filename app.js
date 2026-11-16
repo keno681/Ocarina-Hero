@@ -1,4 +1,37 @@
 'use strict';
+document.addEventListener('DOMContentLoaded', () => {
+  document.body.classList.add('scene-only');
+  const style = document.createElement('style');
+  style.textContent = `
+    body.scene-only{min-height:100vh}
+    .scene-only:not(.options-open) header,.scene-only:not(.options-open) main,
+    .scene-only footer,.scene-only .eyebrow,.scene-only h1,.scene-only .intro,
+    .scene-only .footnote,.scene-only .ocarina,.scene-only .keys,.scene-only .brand{display:none}
+    .scene-only.options-open header{padding-right:150px;justify-content:flex-start}
+    .scene-only.options-open main{padding-top:0}
+    #options-toggle{position:fixed;top:20px;right:20px;z-index:1000;padding:12px 20px;border:1px solid #d8caa8;border-radius:24px;background:#17251cdd;color:#fff1ce;font:14px Arial;cursor:pointer}
+  `;
+  document.head.appendChild(style);
+  const toggle = document.createElement('button');
+  toggle.id = 'options-toggle';
+  toggle.textContent = '⚙ Options';
+  toggle.setAttribute('aria-expanded', 'false');
+  function setOptions(open) {
+    document.body.classList.toggle('options-open', open);
+    toggle.setAttribute('aria-expanded', String(open));
+    toggle.textContent = open ? 'Fermer les options' : '⚙ Options';
+    if (!open) toggle.focus();
+  }
+  toggle.onclick = () => {
+    try { context(); } catch (_) {}
+    setOptions(!document.body.classList.contains('options-open'));
+  };
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && document.body.classList.contains('options-open')) setOptions(false);
+  });
+  document.body.appendChild(toggle);
+});
+
 const frequencies = [587.33, 698.46, 880, 987.77, 1174.66];
 const names = ['Ré', 'Fa', 'La', 'Si', 'Ré aigu'];
 const shortcuts = ['l', 'r', 'q', 't', 'o'];
