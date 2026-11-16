@@ -1,0 +1,16 @@
+{
+  "format": "ocarina-patch-v1",
+  "title": "Aura jaune et touches enfoncées",
+  "files": [
+    {
+      "path": "app.js",
+      "old": "'use strict';",
+      "new": "'use strict';\ndocument.addEventListener('DOMContentLoaded', () => queueMicrotask(() => {\n  if (window.ocarinaAura) return;\n  window.ocarinaAura = true;\n  const timers = new Map();\n  const original = input;\n  input = function(index) {\n    original(index);\n    const label = document.querySelectorAll('#note-lanes .lane-label')[index];\n    if (!label) return;\n    clearTimeout(timers.get(index));\n    label.classList.add('note-glow');\n    timers.set(index, setTimeout(() => {\n      label.classList.remove('note-glow');\n      timers.delete(index);\n    }, 280));\n  };\n}));\n"
+    },
+    {
+      "path": "style.css",
+      "old": ":root{",
+      "new": "#note-lanes .lane-label{border-radius:12px;min-height:38px;display:grid;place-items:center;transition:box-shadow .12s,background .12s,transform .12s}\n.note.active,#note-lanes .lane-label.note-glow{background:#ffe469!important;color:#49360b!important;box-shadow:0 0 12px #ffe055,0 0 30px #ffcf36,0 0 48px #ffd54f80;transform:scale(.9);text-shadow:0 0 8px #fff3b0}\n#note-lanes .lane-note{animation:ocarina-note-aura .35s ease-out}\n@keyframes ocarina-note-aura{from{box-shadow:0 0 10px #ffe055,0 0 24px #ffcf36;background:#ffe469;color:#49360b}to{box-shadow:0 0 0 transparent}}\n:root{"
+    }
+  ]
+}

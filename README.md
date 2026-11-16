@@ -82,3 +82,7 @@ Dans Options, choisir PS5, N64, Clavier ou Switch. Le choix reste enregistré su
 Le patch `patches/affichage-touches.json` s’applique après le patch des cinq lignes.
 
 Les lignes sont affichées du plus aigu au plus grave, de haut en bas : Ré aigu, Si, La, Fa, Ré. Les associations aux touches restent inchangées. Patch : `patches/ordre-hauteur.json`.
+
+## Aura jaune
+
+À chaque note, la touche fixe s’illumine en jaune et se réduit légèrement pendant 280 ms. Un nouvel appui sur la même touche renouvelle cet effet. La note défilante reçoit aussi un bref éclat. Clavier et manette partagent cet effet. Patch : `patches/aura-jaune.json`.

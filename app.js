@@ -1,4 +1,22 @@
 'use strict';
+document.addEventListener('DOMContentLoaded', () => queueMicrotask(() => {
+  if (window.ocarinaAura) return;
+  window.ocarinaAura = true;
+  const timers = new Map();
+  const original = input;
+  input = function(index) {
+    original(index);
+    const label = document.querySelectorAll('#note-lanes .lane-label')[index];
+    if (!label) return;
+    clearTimeout(timers.get(index));
+    label.classList.add('note-glow');
+    timers.set(index, setTimeout(() => {
+      label.classList.remove('note-glow');
+      timers.delete(index);
+    }, 280));
+  };
+}));
+
 window.ocarinaSymbols = ['L', 'R', '□', '△', '○'];
 document.addEventListener('DOMContentLoaded', () => queueMicrotask(() => {
   if (document.getElementById('display-mode')) return;
