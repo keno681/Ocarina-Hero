@@ -65,3 +65,7 @@ L’interface est masquée au lancement pour laisser le fond visible. Le bouton 
 ## Bulle des touches (version 0.3.3)
 
 Une grande bulle en bas affiche L, R, carré, triangle et rond. Chaque nouvelle note arrive à droite et décale les précédentes vers la gauche. Le clavier, les clics et les manettes partagent cet historique, limité aux 24 dernières notes. Les animations respectent la préférence de réduction des mouvements. Le patch `patches/bulle-touches.json` permet la mise à jour dans la Pokéball.
+
+## Cinq lignes (version 0.3.4)
+
+La bulle affiche cinq lignes horizontales : L, R, carré, triangle et rond. Chaque note jouée traverse sa ligne à vitesse constante (250 pixels/seconde), puis disparaît à gauche, même sans autre appui. Les libellés restent fixes à gauche. L’ancien historique est masqué ; le clavier, la manette et les options restent actifs. Patch Pokéball : `patches/cinq-lignes.json`.

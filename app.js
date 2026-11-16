@@ -1,5 +1,47 @@
 'use strict';
 document.addEventListener('DOMContentLoaded', () => {
+  if (document.getElementById('note-lanes')) return;
+  const style = document.createElement('style');
+  style.textContent = '#note-dialogue{display:none!important}#note-lanes{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);width:min(1100px,calc(100% - 160px));padding:16px 20px;border:2px solid #d8caa8;border-radius:24px;background:#17251ce8;color:#fff1ce;z-index:900;box-sizing:border-box;pointer-events:none}#note-lanes .lane-row{display:flex;align-items:center;gap:12px;height:46px}#note-lanes .lane-label{flex:0 0 38px;text-align:center;font:bold 28px Arial}#note-lanes .lane-track{position:relative;flex:1;min-width:0;height:44px;overflow:hidden;background:linear-gradient(transparent 49%,#d8caa840 49%,#d8caa840 51%,transparent 51%)}#note-lanes .lane-note{position:absolute;left:0;top:3px;width:38px;height:38px;display:flex;align-items:center;justify-content:center;border:1px solid currentColor;border-radius:12px;background:#22392b;font:bold 26px Arial;will-change:transform}@media(max-width:600px){#note-lanes{width:calc(100% - 24px);bottom:82px;padding:12px}}';
+  document.head.appendChild(style);
+  const box = document.createElement('section');
+  box.id = 'note-lanes';
+  box.setAttribute('aria-label', 'Notes jouées sur cinq lignes, défilement continu');
+  const symbols = ['L', 'R', '□', '△', '○'];
+  const names = ['L', 'R', 'Carré', 'Triangle', 'Rond'];
+  const colors = ['#e8dfc6', '#d7dfef', '#e5a0c9', '#9ed9b1', '#f1a08e'];
+  const tracks = symbols.map((symbol, index) => {
+    const row = document.createElement('div');
+    row.className = 'lane-row';
+    row.style.color = colors[index];
+    const label = document.createElement('span');
+    label.className = 'lane-label';
+    label.textContent = symbol;
+    label.setAttribute('aria-label', names[index]);
+    const track = document.createElement('div');
+    track.className = 'lane-track';
+    track.setAttribute('aria-hidden', 'true');
+    row.append(label, track);
+    box.appendChild(row);
+    return track;
+  });
+  document.body.appendChild(box);
+  const original = input;
+  input = function(index) {
+    original(index);
+    const track = tracks[index];
+    if (!track) return;
+    const chip = document.createElement('span');
+    chip.className = 'lane-note';
+    chip.textContent = symbols[index];
+    track.appendChild(chip);
+    const start = track.clientWidth + 8;
+    const animation = chip.animate([{transform:'translateX(' + start + 'px)'}, {transform:'translateX(-48px)'}], {duration:(start + 48) / 0.25,easing:'linear',fill:'forwards'});
+    animation.onfinish = animation.oncancel = () => chip.remove();
+  };
+});
+
+document.addEventListener('DOMContentLoaded', () => {
   document.body.classList.add('scene-only');
   const style = document.createElement('style');
   style.textContent = `
