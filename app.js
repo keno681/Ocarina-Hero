@@ -1,6 +1,6 @@
 'use strict';
 window.ocarinaTimingJudge = delta => Math.abs(delta) <= 90 ? 'Parfait' : Math.abs(delta) <= 180 ? 'Bien' : null;
-document.addEventListener('DOMContentLoaded', () => queueMicrotask(() => {
+document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
   if (document.getElementById('game-mode')) return;
   const box = document.getElementById('note-lanes');
   if (!box) return;

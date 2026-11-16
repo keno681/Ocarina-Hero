@@ -1,0 +1,11 @@
+{
+  "format": "ocarina-patch-v1",
+  "title": "Activer le mode Test après la création des lignes",
+  "files": [
+    {
+      "path": "app.js",
+      "old": "window.ocarinaTimingJudge = delta => Math.abs(delta) <= 90 ? 'Parfait' : Math.abs(delta) <= 180 ? 'Bien' : null;\ndocument.addEventListener('DOMContentLoaded', () => queueMicrotask(() => {",
+      "new": "window.ocarinaTimingJudge = delta => Math.abs(delta) <= 90 ? 'Parfait' : Math.abs(delta) <= 180 ? 'Bien' : null;\ndocument.addEventListener('DOMContentLoaded', () => setTimeout(() => {"
+    }
+  ]
+}

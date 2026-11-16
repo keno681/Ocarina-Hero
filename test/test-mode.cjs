@@ -1,13 +1,14 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs');
-function setup(){
+function setup(lateLanes=false){
+ const deferred=[];let lanesReady=!lateLanes;
  const nodes=new Map(),events={},classes=new Set();let now=0,tick,active=false;
  function el(){return {children:[],style:{},clientWidth:500,value:'',textContent:'',appendChild(item){item.parent=this;this.children.push(item);},remove(){if(this.parent){this.parent.children=this.parent.children.filter(n=>n!==this);this.parent=null;}},querySelector(selector){if(!nodes.has(selector))nodes.set(selector,el());return nodes.get(selector);},animate(){return {cancel(){}};}};}
  const tracks=Array.from({length:5},el),box=el();box.querySelectorAll=()=>tracks;
  const body=el();body.classList={contains:name=>classes.has(name),toggle:(name,on)=>on?classes.add(name):classes.delete(name)};
- const document={createElement:el,head:el(),body,getElementById:id=>id==='note-lanes'?box:nodes.get('#'+id)||null,querySelector:()=>el(),addEventListener:(name,fn)=>events[name]=fn,hasFocus:()=>true};
- const ctx={document,queueMicrotask:fn=>fn(),performance:{now:()=>now},Math:Object.assign(Object.create(Math),{random:()=>0}),localStorage:{getItem:()=>null,setItem(){}},input(){},context(){},setInterval:fn=>{tick=fn;active=true;return 1;},clearInterval:()=>active=false,addEventListener(){}};ctx.window=ctx;
- vm.createContext(ctx);vm.runInContext(JSON.parse(fs.readFileSync('patches/mode-test.json','utf8')).files[0].new,ctx);events.DOMContentLoaded();
+ const document={createElement:el,head:el(),body,getElementById:id=>id==='note-lanes'?(lanesReady?box:null):nodes.get('#'+id)||null,querySelector:()=>el(),addEventListener:(name,fn)=>events[name]=fn,hasFocus:()=>true};
+ const ctx={document,queueMicrotask:fn=>fn(),setTimeout:fn=>deferred.push(fn),performance:{now:()=>now},Math:Object.assign(Object.create(Math),{random:()=>0}),localStorage:{getItem:()=>null,setItem(){}},input(){},context(){},setInterval:fn=>{tick=fn;active=true;return 1;},clearInterval:()=>active=false,addEventListener(){}};ctx.window=ctx;
+ vm.createContext(ctx);vm.runInContext(JSON.parse(fs.readFileSync('patches/mode-test.json','utf8')).files[0].new,ctx);events.DOMContentLoaded();lanesReady=true;deferred.forEach(fn=>fn());
  return {ctx,nodes,classes,advance(time){now=time;if(active)tick();},get active(){return active;}};
 }
 test('timing windows distinguish perfect, good and incorrect hits',()=>{
@@ -25,4 +26,10 @@ test('misses finish a round and opening options cancels a new round',()=>{
  s.nodes.get('#test-start').onclick();s.classes.add('options-open');s.advance(10025);
  assert.equal(s.active,false);assert.match(s.nodes.get('#test-feedback').textContent,/interrompu/);
  mode.value='free';mode.onchange();assert.equal(s.nodes.get('#test-start').hidden,true);
+});
+
+test('test mode waits for lanes created by a later DOMContentLoaded listener',()=>{
+ const s=setup(true);
+ assert.ok(s.nodes.get('#game-mode'));
+ assert.ok(s.nodes.get('#test-start'));
 });
