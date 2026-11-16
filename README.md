@@ -118,3 +118,11 @@ En mode Test actif, une mauvaise touche ou un appui hors de la zone rend la barr
 ## Choix du mode sur l’écran principal
 
 Deux boutons Libre et Test sont affichés à gauche du jeu. Le mode actif est surligné en jaune. Ils remplacent le choix du mode dans Options et conservent la mémorisation et l’arrêt de la partie lors d’un changement de mode. Le bouton Lancer le test reste dans la bulle. Patch : `patches/modes-a-gauche.json`.
+
+## Appuis prolongés (version 0.6.0)
+
+Clavier, manette et souris/tactile prennent en charge le maintien : le son et l’aura restent actifs jusqu’au relâchement. En Libre, une traînée représente la durée de l’appui. Plusieurs notes peuvent être tenues ensemble. Les sons s’arrêtent au relâchement, à la perte de focus, à la déconnexion d’une manette ou à l’ouverture des options. Le volume reste réglable pendant une note.
+
+En Test, certaines notes ont une traînée de 900 ms. Attraper leur tête dans la zone jaune, puis maintenir jusqu’au bout de la traînée. La réussite est comptée à la fin (tolérance de relâchement de 90 ms) ; une coupure prématurée fait rater la note. Une pénalité interrompt les notes en cours. Le choix du mode, les associations, le son et les effets visuels existants sont conservés.
+
+`patches/appuis-prolonges.json` est un remplacement complet d’app.js pour éviter les ambiguïtés des anciens correctifs. Il conserve les paramètres stockés sur le PC ; la console sauvegarde l’ancien code avant application.

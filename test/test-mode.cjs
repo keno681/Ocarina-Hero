@@ -1,6 +1,6 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs');
-function setup(lateLanes=false,shifted=false,gated=false,penalty=false,navigation=false){
+function setup(lateLanes=false,shifted=false,gated=false,penalty=false,navigation=false,modern=false){
  const played=[];
  const timers=new Map();let timerId=0;let lanesReady=!lateLanes;
  const nodes=new Map(),events={},classes=new Set();let now=0,tick,active=false;
@@ -17,6 +17,7 @@ function setup(lateLanes=false,shifted=false,gated=false,penalty=false,navigatio
  if(gated){const op=JSON.parse(fs.readFileSync('patches/test-zone-obligatoire.json','utf8')).files[0];source=source.replace(op.old,op.new);}
  if(penalty){for(const op of JSON.parse(fs.readFileSync('patches/penalite-appui.json','utf8')).files)source=source.replace(op.old,op.new);}
  if(navigation){const op=JSON.parse(fs.readFileSync('patches/modes-a-gauche.json','utf8')).files[0];source=source.replace(op.old,op.new);}
+ if(modern){const full=fs.readFileSync('app.js','utf8');const end=full.lastIndexOf('document.addEventListener',full.indexOf("  if (document.getElementById('note-bindings'))"));source=full.slice(full.indexOf('window.ocarinaTimingJudge ='),end);}
  vm.createContext(ctx);vm.runInContext(source,ctx);events.DOMContentLoaded();lanesReady=true;flushTimers();
  return {ctx,nodes,classes,played,barStyles,body,advance(time){now=time;flushTimers();if(active)tick();},get active(){return active;}};
 }
@@ -91,4 +92,20 @@ test('main-screen mode buttons switch the mode, show selection and stop an activ
  testButton.onclick();assert.ok(s.classes.has('test-mode'));assert.equal(testButton.attributes['aria-pressed'],'true');
  s.nodes.get('#test-start').onclick();assert.equal(s.active,true);
  free.onclick();assert.equal(s.active,false);assert.equal(s.classes.has('test-mode'),false);assert.equal(free.attributes['aria-pressed'],'true');
+});
+
+test('long test notes require a maintained input and finish the round',()=>{
+ const s=setup(false,true,false,false,false,true),mode=s.nodes.get('#game-mode');
+ s.ctx.ocarinaHeldNote=()=>true;
+ mode.value='test';mode.onchange();s.nodes.get('#test-start').onclick();
+ for(let time=25;time<=10000;time+=25){s.advance(time);if(time>=1675&&(time-1675)%900===0)s.ctx.input(0);}
+ assert.match(s.nodes.get('#test-feedback').textContent,/Terminé.*8\/8.*800/);
+});
+test('releasing a long test note early fails it and stops its sound',()=>{
+ const s=setup(false,true,false,false,false,true),mode=s.nodes.get('#game-mode');let held=true,released=0;
+ s.ctx.ocarinaHeldNote=()=>held;s.ctx.ocarinaReleaseNote=()=>released++;
+ mode.value='test';mode.onchange();s.nodes.get('#test-start').onclick();
+ for(let time=25;time<=2575;time+=25){s.advance(time);if(time===2575)s.ctx.input(0);}
+ assert.match(s.nodes.get('#test-feedback').textContent,/Maintenez/);
+ held=false;s.advance(3000);assert.match(s.nodes.get('#test-feedback').textContent,/trop tôt/);assert.ok(released>0);
 });

@@ -1,4 +1,112 @@
 'use strict';
+// BEGIN HOLD SUPPORT
+const heldVoices = new Map();
+const heldKeys = new Map(), heldPointers = new Map();
+function heldGamepadNotes() {
+  const notes = new Set();
+  try {
+    const mappings = JSON.parse(localStorage.getItem('ocarina-gamepad-mappings') || '{}') || {};
+    for (const pad of Array.from(navigator.getGamepads?.() || [])) {
+      if (!pad || pad.connected === false) continue;
+      const configured = mappings[pad.id];
+      const mapping = Array.isArray(configured) && configured.length === 5 ? configured : pad.mapping === 'standard' ? [4,5,2,3,1] : [];
+      mapping.forEach((button,note) => { if (pad.buttons[button]?.pressed || pad.buttons[button]?.value > .5) notes.add(note); });
+    }
+  } catch (_) {}
+  return notes;
+}
+window.ocarinaHeldNote = note => Array.from(heldKeys.values()).includes(note) || Array.from(heldPointers.values()).includes(note) || heldGamepadNotes().has(note);
+window.ocarinaReleaseNote = note => releaseHeldVoice(note);
+function releaseHeldVoice(note) {
+  const voice = heldVoices.get(note);
+  if (!voice) return;
+  heldVoices.delete(note);
+  voice.released = performance.now();
+  const now = voice.ctx.currentTime;
+  voice.output.gain.cancelScheduledValues(now);
+  voice.output.gain.setTargetAtTime(.0001,now,.012);
+  for (const oscillator of voice.oscillators) oscillator.stop(now + .08);
+  document.querySelectorAll('#note-lanes .lane-label')[note]?.classList.remove('held-note');
+}
+window.ocarinaReleaseNotes = () => {
+  heldKeys.clear(); heldPointers.clear();
+  for (const note of Array.from(heldVoices.keys())) releaseHeldVoice(note);
+};
+function playHeldNote(note) {
+  if (heldVoices.has(note)) return;
+  const ctx = context(), now = ctx.currentTime, output = ctx.createGain();
+  output.gain.setValueAtTime(0,now);
+  output.gain.linearRampToValueAtTime(Number(document.querySelector('#volume').value) / 100 * .22,now + .02);
+  output.connect(ctx.destination);
+  let ended = 0;
+  const oscillators = [1,2,3].map((harmonic,i) => {
+    const oscillator = ctx.createOscillator(), gain = ctx.createGain();
+    oscillator.type = 'sine'; oscillator.frequency.value = frequencies[note] * harmonic;
+    gain.gain.value = [1,.13,.035][i];
+    oscillator.connect(gain).connect(output); oscillator.start(now);
+    oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); if (++ended === 3) output.disconnect(); };
+    return oscillator;
+  });
+  const voice = {ctx,output,oscillators,released:null}; heldVoices.set(note,voice);
+  const label = document.querySelectorAll('#note-lanes .lane-label')[note];
+  label?.classList.add('held-note');
+  const track = document.querySelectorAll('#note-lanes .lane-track')[note];
+  if (track && !document.body.classList.contains('test-mode')) {
+    const trail = document.createElement('span'); trail.className = 'hold-trail'; track.appendChild(trail);
+    const begin = performance.now(), from = track.clientWidth + 8;
+    function draw() {
+      const time = performance.now(), end = voice.released ?? time;
+      const x = from - (time - begin) * .25, width = 38 + (end - begin) * .25;
+      trail.style.transform = 'translateX(' + x + 'px)'; trail.style.width = width + 'px';
+      if (x + width < 0 || document.body.classList.contains('test-mode')) trail.remove();
+      else requestAnimationFrame(draw);
+    }
+    requestAnimationFrame(draw);
+  }
+}
+function play(note, duration = .48) {
+  if (window.ocarinaHeldNote(note)) playHeldNote(note);
+  else playTap(note,duration);
+}
+document.addEventListener('keydown', event => {
+  if (event.repeat || event.ctrlKey || event.metaKey || event.altKey || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) return;
+  const note = shortcuts.indexOf(event.key.toLowerCase());
+  if (note >= 0) heldKeys.set(event.code || event.key.toLowerCase(),note);
+},true);
+document.addEventListener('keyup', event => heldKeys.delete(event.code || event.key.toLowerCase()),true);
+document.addEventListener('pointerdown', event => {
+  const button = event.target.closest?.('.note');
+  if (!button || (event.button !== 0 && event.pointerType !== 'touch')) return;
+  const note = Number(button.dataset.note);
+  if (!Number.isInteger(note) || note < 0 || note > 4) return;
+  heldPointers.set(event.pointerId,note); button.setPointerCapture?.(event.pointerId);
+  event.preventDefault(); input(note);
+},true);
+for (const type of ['pointerup','pointercancel','lostpointercapture']) document.addEventListener(type,event => heldPointers.delete(event.pointerId),true);
+document.addEventListener('click', event => { if(event.isTrusted && event.detail > 0 && event.target.closest?.('.note')) event.stopImmediatePropagation(); },true);
+window.addEventListener('blur',window.ocarinaReleaseNotes);
+document.addEventListener('visibilitychange',() => { if(document.hidden) window.ocarinaReleaseNotes(); });
+document.addEventListener('DOMContentLoaded',() => {
+  const style = document.createElement('style');
+  style.textContent = '#note-lanes .lane-label.held-note{background:#ffe469!important;color:#49360b!important;box-shadow:0 0 12px #ffe055,0 0 30px #ffcf36;transform:scale(.9)}#note-lanes .hold-trail{position:absolute;left:0;top:10px;height:24px;border-radius:12px;background:#ffe46966;box-shadow:0 0 8px #ffe055;pointer-events:none}';
+  document.head.appendChild(style);
+  new MutationObserver(() => window.ocarinaReleaseNotes()).observe(document.body,{attributes:true,attributeFilter:['class']});
+  let previousVolume = '';
+  function pollHeld() {
+    const gamepad = heldGamepadNotes();
+    const volume = document.querySelector('#volume').value;
+    for (const [note,voice] of heldVoices) {
+      const down = Array.from(heldKeys.values()).includes(note) || Array.from(heldPointers.values()).includes(note) || gamepad.has(note);
+      if (!down || !document.hasFocus() || document.body.classList.contains('options-open')) releaseHeldVoice(note);
+      else if (volume !== previousVolume) voice.output.gain.setTargetAtTime(Number(volume)/100*.22,voice.ctx.currentTime,.02);
+    }
+    previousVolume = volume;
+    requestAnimationFrame(pollHeld);
+  }
+  requestAnimationFrame(pollHeld);
+});
+// END HOLD SUPPORT
+
 document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
   if (document.getElementById('rumble-test')) return;
   const panel = document.createElement('section');
@@ -90,6 +198,8 @@ document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
     if (bar) { bar.style.removeProperty('background'); bar.style.removeProperty('box-shadow'); }
   }
   function lockInputs() {
+    for (const target of targets) if (target.holding && !target.done) settleTarget(target,false);
+    window.ocarinaReleaseNotes?.();
     blockedUntil = performance.now() + 400;
     const bar = document.getElementById('hit-bar');
     if (bar) {
@@ -101,6 +211,7 @@ document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
     report('Appui inutile : blocage 0,4 s');
   }
   function clearRound() {
+    window.ocarinaReleaseNotes?.();
     resetLock();
     running = false; clearInterval(clock); clock = null;
     for (const target of targets) { target.animation.cancel(); target.chip.remove(); }
@@ -113,16 +224,30 @@ document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
       report('Terminé !'); start.textContent = 'Rejouer';
     }
   }
+  function settleTarget(target,success) {
+    if (target.done) return;
+    target.done = true; judged++;
+    if (target.length) window.ocarinaReleaseNote?.(target.note);
+    if (success) {
+      correct++; score += target.verdict === 'Parfait' ? 100 : 60;
+      target.animation.cancel(); target.chip.remove(); targets = targets.filter(t => t !== target);
+      window.ocarinaHitFeedback?.(target.verdict); report(target.length ? 'Note tenue !' : target.verdict + ' !');
+    } else { target.chip.style.opacity = '.25'; report(target.holding ? 'Relâché trop tôt' : 'Raté'); }
+    finishIfReady();
+  }
   function spawn(now) {
     const note = Math.floor(Math.random() * 5), track = tracks[note];
+    const holdLength = spawned % 3 === 1 ? 900 : 0;
     const chip = document.createElement('span'); chip.className = 'lane-note test-target';
+    if (holdLength) { chip.style.width = (40 + holdLength * .25) + 'px'; chip.style.boxSizing = 'border-box'; chip.style.justifyContent = 'flex-start'; chip.style.paddingLeft = '4px'; }
     chip.textContent = window.ocarinaSymbols?.[note] || ['L','R','□','△','○'][note];
     track.appendChild(chip);
     const from = track.clientWidth + 8;
-    const animation = chip.animate([{transform:'translateX(' + from + 'px)'},{transform:'translateX(-48px)'}],{duration:(from + 48)/0.25,easing:'linear',fill:'forwards'});
-    const target = {note,chip,animation,at:now + (from - (track.clientWidth * 0.22 + 2 - chip.offsetWidth / 2))/0.25,done:false};
+    const animation = chip.animate([{transform:'translateX(' + from + 'px)'},{transform:'translateX(' + (-48 - holdLength * .25) + 'px)'}],{duration:(from + 48)/0.25 + holdLength,easing:'linear',fill:'forwards'});
+    const at = now + (from - (track.clientWidth * 0.22 + 2 - 20))/0.25;
+    const target = {note,chip,animation,at,endAt:at + holdLength,length:holdLength,holding:false,verdict:null,done:false};
     animation.onfinish = () => {
-      if (running && !target.done) { target.done = true; judged++; report('Raté'); finishIfReady(); }
+      if (running && !target.done) settleTarget(target,false);
       chip.remove(); targets = targets.filter(t => t !== target);
     };
     targets.push(target); spawned++;
@@ -135,9 +260,11 @@ document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
     const now = performance.now();
     if (spawned < total && now >= nextSpawn) { spawn(now); nextSpawn = now + 900; }
     for (const target of targets) {
-      if (!target.done && now - target.at > 180) {
-        target.done = true; judged++; target.chip.style.opacity = '.25'; report('Raté');
-      }
+      if (target.done) continue;
+      if (target.holding) {
+        if (now >= target.endAt) settleTarget(target,true);
+        else if (!window.ocarinaHeldNote?.(target.note)) settleTarget(target,now >= target.endAt - 90);
+      } else if (now - target.at > 180) settleTarget(target,false);
     }
     finishIfReady();
   }
@@ -157,26 +284,28 @@ document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
     if (performance.now() < blockedUntil) return;
     const area = zone.getBoundingClientRect();
     const allowed = targets.some(target => {
-      if (target.done || target.note !== note) return false;
+      if (target.done || target.holding || target.note !== note) return false;
       const rect = target.chip.getBoundingClientRect();
-      return rect.left <= area.right && rect.right >= area.left;
+      return rect.left <= area.right && rect.left + 40 >= area.left;
     });
     if (!allowed) { lockInputs(); return; }
     original(note);
     if (mode.value !== 'test' || !running || document.body.classList.contains('options-open')) return;
     const now = performance.now();
-    const target = targets.filter(t => !t.done && t.note === note).sort((a,b) => Math.abs(a.at-now)-Math.abs(b.at-now))[0];
+    const target = targets.filter(t => !t.done && !t.holding && t.note === note).sort((a,b) => Math.abs(a.at-now)-Math.abs(b.at-now))[0];
     const verdict = target && window.ocarinaTimingJudge(now - target.at);
     if (!verdict) { score = Math.max(0,score-10); report('Hors timing ou mauvaise touche'); return; }
-    target.done = true; judged++; correct++; score += verdict === 'Parfait' ? 100 : 60;
-    target.animation.cancel(); target.chip.remove(); targets = targets.filter(t => t !== target);
-    window.ocarinaHitFeedback?.(verdict); report(verdict + ' !'); finishIfReady();
+    target.verdict = verdict;
+    if (target.length) {
+      target.holding = true; target.chip.style.background = '#ffe469'; target.chip.style.color = '#49360b';
+      report('Maintenez la touche…');
+    } else settleTarget(target,true);
   };
   function applyMode() {
     clearRound(); document.body.classList.toggle('test-mode',mode.value === 'test');
     start.hidden = mode.value !== 'test';
     toolbar.querySelector('#test-mode-label').textContent = mode.value === 'test' ? 'MODE TEST' : 'MODE LIBRE';
-    feedback.textContent = mode.value === 'test' ? '8 notes à jouer sur la barre jaune.' : 'Jouez à votre rythme.';
+    feedback.textContent = mode.value === 'test' ? '8 notes : maintenez les touches longues jusqu’au bout.' : 'Jouez à votre rythme.';
     try { localStorage.setItem('ocarina-game-mode',mode.value); } catch (_) {}
   }
   options.hidden = true;
@@ -464,7 +593,7 @@ function context() {
   if (audio.state === 'suspended') audio.resume();
   return audio;
 }
-function play(index, duration = .48) {
+function playTap(index, duration = .48) {
   const ctx = context(), now = ctx.currentTime;
   const output = ctx.createGain();
   const volume = Number(document.querySelector('#volume').value) / 100;
