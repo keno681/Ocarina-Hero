@@ -1,19 +1,23 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs');
-function setup(lateLanes=false,shifted=false,gated=false){
+function setup(lateLanes=false,shifted=false,gated=false,penalty=false){
  const played=[];
- const deferred=[];let lanesReady=!lateLanes;
+ const timers=new Map();let timerId=0;let lanesReady=!lateLanes;
  const nodes=new Map(),events={},classes=new Set();let now=0,tick,active=false;
  function el(){return {children:[],style:{},clientWidth:500,offsetWidth:40,value:'',textContent:'',appendChild(item){item.parent=this;this.children.push(item);},remove(){if(this.parent){this.parent.children=this.parent.children.filter(n=>n!==this);this.parent=null;}},querySelector(selector){if(!nodes.has(selector))nodes.set(selector,el());return nodes.get(selector);},getBoundingClientRect(){const x=this.motion ? this.motion.from - (now-this.motion.start)*0.25 : 0;return {left:x,right:x+40};},animate(frames){this.motion={from:Number(frames[0].transform.match(/[-0-9.]+/)[0]),start:now};return {cancel(){}};}};}
  const tracks=Array.from({length:5},el),box=el();box.querySelectorAll=()=>tracks;
  const body=el();body.classList={contains:name=>classes.has(name),toggle:(name,on)=>on?classes.add(name):classes.delete(name)};
- const document={createElement:el,head:el(),body,getElementById:id=>id==='hit-bar'?{getBoundingClientRect:()=>({left:shifted?110:24,right:shifted?114:28})}:id==='note-lanes'?(lanesReady?box:null):nodes.get('#'+id)||null,querySelector:()=>el(),addEventListener:(name,fn)=>events[name]=fn,hasFocus:()=>true};
- const ctx={document,queueMicrotask:fn=>fn(),setTimeout:fn=>deferred.push(fn),performance:{now:()=>now},Math:Object.assign(Object.create(Math),{random:()=>0}),localStorage:{getItem:()=>null,setItem(){}},input:note=>played.push(note),context(){},setInterval:fn=>{tick=fn;active=true;return 1;},clearInterval:()=>active=false,addEventListener(){}};ctx.window=ctx;
+ const barStyles=new Map();
+ const bar={style:{setProperty:(key,value)=>barStyles.set(key,value),removeProperty:key=>barStyles.delete(key)},getAnimations:()=>[],getBoundingClientRect:()=>({left:shifted?110:24,right:shifted?114:28})};
+ function flushTimers(){let entry;while((entry=Array.from(timers.entries()).find(([,task])=>task.at<=now))){timers.delete(entry[0]);entry[1].fn();}}
+ const document={createElement:el,head:el(),body,getElementById:id=>id==='hit-bar'?bar:id==='note-lanes'?(lanesReady?box:null):nodes.get('#'+id)||null,querySelector:()=>el(),addEventListener:(name,fn)=>events[name]=fn,hasFocus:()=>true};
+ const ctx={document,queueMicrotask:fn=>fn(),setTimeout:(fn,delay=0)=>{timers.set(++timerId,{fn,at:now+delay});return timerId;},clearTimeout:id=>timers.delete(id),performance:{now:()=>now},Math:Object.assign(Object.create(Math),{random:()=>0}),localStorage:{getItem:()=>null,setItem(){}},input:note=>played.push(note),context(){},setInterval:fn=>{tick=fn;active=true;return 1;},clearInterval:()=>active=false,addEventListener(){}};ctx.window=ctx;
  let source=JSON.parse(fs.readFileSync('patches/mode-test.json','utf8')).files[0].new;
  if(shifted){for(const op of JSON.parse(fs.readFileSync('patches/barre-continue-retour.json','utf8')).files.slice(1))source=source.replace(op.old,op.new);}
  if(gated){const op=JSON.parse(fs.readFileSync('patches/test-zone-obligatoire.json','utf8')).files[0];source=source.replace(op.old,op.new);}
- vm.createContext(ctx);vm.runInContext(source,ctx);events.DOMContentLoaded();lanesReady=true;deferred.forEach(fn=>fn());
- return {ctx,nodes,classes,played,advance(time){now=time;if(active)tick();},get active(){return active;}};
+ if(penalty){for(const op of JSON.parse(fs.readFileSync('patches/penalite-appui.json','utf8')).files)source=source.replace(op.old,op.new);}
+ vm.createContext(ctx);vm.runInContext(source,ctx);events.DOMContentLoaded();lanesReady=true;flushTimers();
+ return {ctx,nodes,classes,played,barStyles,advance(time){now=time;flushTimers();if(active)tick();},get active(){return active;}};
 }
 test('timing windows distinguish perfect, good and incorrect hits',()=>{
  const {ctx}=setup();assert.equal(ctx.ocarinaTimingJudge(-90),'Parfait');assert.equal(ctx.ocarinaTimingJudge(150),'Bien');assert.equal(ctx.ocarinaTimingJudge(181),null);
@@ -61,4 +65,18 @@ test('test inputs after the note has left the zone are ignored without penalty',
  const s=setup(false,true,true),mode=s.nodes.get('#game-mode');mode.value='test';mode.onchange();s.nodes.get('#test-start').onclick();
  s.advance(1800);s.ctx.input(0);assert.deepEqual(s.played,[]);assert.match(s.nodes.get('#test-feedback').textContent,/Score 0/);
  mode.value='free';mode.onchange();s.ctx.input(0);assert.deepEqual(s.played,[0]);
+});
+
+test('invalid inputs blacken the bar for 400ms without extending on extra presses',()=>{
+ const s=setup(false,true,true,true),mode=s.nodes.get('#game-mode');mode.value='test';mode.onchange();s.nodes.get('#test-start').onclick();
+ s.advance(1200);s.ctx.input(0);assert.equal(s.barStyles.get('background'),'#080808');assert.deepEqual(s.played,[]);
+ s.advance(1580);s.ctx.input(0);assert.deepEqual(s.played,[]);assert.equal(s.barStyles.get('background'),'#080808');
+ s.advance(1600);assert.equal(s.barStyles.has('background'),false);s.ctx.input(0);assert.deepEqual(s.played,[0]);
+ assert.match(s.nodes.get('#test-feedback').textContent,/1\/8.*100/);
+});
+test('changing mode clears penalty and free mode remains playable',()=>{
+ const s=setup(false,true,true,true),mode=s.nodes.get('#game-mode');mode.value='test';mode.onchange();s.nodes.get('#test-start').onclick();
+ s.ctx.input(1);assert.equal(s.barStyles.get('background'),'#080808');mode.value='free';mode.onchange();
+ assert.equal(s.barStyles.has('background'),false);s.ctx.input(1);assert.deepEqual(s.played,[1]);
+ mode.value='test';mode.onchange();s.nodes.get('#test-start').onclick();s.advance(1580);s.ctx.input(0);assert.deepEqual(s.played,[1,0]);
 });

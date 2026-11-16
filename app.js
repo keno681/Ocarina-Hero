@@ -83,7 +83,25 @@ document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
   const tracks = Array.from(box.querySelectorAll('.lane-track'));
   let running = false, targets = [], clock = null, spawned = 0, judged = 0, correct = 0, score = 0, nextSpawn = 0;
   const total = 8;
+  let blockedUntil = 0, blockTimer = null;
+  function resetLock() {
+    blockedUntil = 0; clearTimeout(blockTimer); blockTimer = null;
+    const bar = document.getElementById('hit-bar');
+    if (bar) { bar.style.removeProperty('background'); bar.style.removeProperty('box-shadow'); }
+  }
+  function lockInputs() {
+    blockedUntil = performance.now() + 400;
+    const bar = document.getElementById('hit-bar');
+    if (bar) {
+      bar.getAnimations().forEach(animation => animation.cancel());
+      bar.style.setProperty('background','#080808','important');
+      bar.style.setProperty('box-shadow','none','important');
+    }
+    clearTimeout(blockTimer); blockTimer = setTimeout(resetLock,400);
+    report('Appui inutile : blocage 0,4 s');
+  }
   function clearRound() {
+    resetLock();
     running = false; clearInterval(clock); clock = null;
     for (const target of targets) { target.animation.cancel(); target.chip.remove(); }
     targets = []; start.disabled = false;
@@ -136,13 +154,14 @@ document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
     if (!running || document.body.classList.contains('options-open')) return;
     const zone = document.getElementById('hit-bar');
     if (!zone) return;
+    if (performance.now() < blockedUntil) return;
     const area = zone.getBoundingClientRect();
     const allowed = targets.some(target => {
       if (target.done || target.note !== note) return false;
       const rect = target.chip.getBoundingClientRect();
       return rect.left <= area.right && rect.right >= area.left;
     });
-    if (!allowed) return;
+    if (!allowed) { lockInputs(); return; }
     original(note);
     if (mode.value !== 'test' || !running || document.body.classList.contains('options-open')) return;
     const now = performance.now();

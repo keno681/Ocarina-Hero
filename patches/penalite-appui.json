@@ -1,0 +1,26 @@
+{
+  "format": "ocarina-patch-v1",
+  "title": "Appui inutile : barre noire et blocage de 400 ms",
+  "files": [
+    {
+      "path": "app.js",
+      "old": "  const total = 8;",
+      "new": "  const total = 8;\n  let blockedUntil = 0, blockTimer = null;\n  function resetLock() {\n    blockedUntil = 0; clearTimeout(blockTimer); blockTimer = null;\n    const bar = document.getElementById('hit-bar');\n    if (bar) { bar.style.removeProperty('background'); bar.style.removeProperty('box-shadow'); }\n  }\n  function lockInputs() {\n    blockedUntil = performance.now() + 400;\n    const bar = document.getElementById('hit-bar');\n    if (bar) {\n      bar.getAnimations().forEach(animation => animation.cancel());\n      bar.style.setProperty('background','#080808','important');\n      bar.style.setProperty('box-shadow','none','important');\n    }\n    clearTimeout(blockTimer); blockTimer = setTimeout(resetLock,400);\n    report('Appui inutile : blocage 0,4 s');\n  }"
+    },
+    {
+      "path": "app.js",
+      "old": "  function clearRound() {",
+      "new": "  function clearRound() {\n    resetLock();"
+    },
+    {
+      "path": "app.js",
+      "old": "    const area = zone.getBoundingClientRect();",
+      "new": "    if (performance.now() < blockedUntil) return;\n    const area = zone.getBoundingClientRect();"
+    },
+    {
+      "path": "app.js",
+      "old": "    if (!allowed) return;",
+      "new": "    if (!allowed) { lockInputs(); return; }"
+    }
+  ]
+}
