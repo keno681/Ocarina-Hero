@@ -114,7 +114,3 @@ En mode Test, les appuis ne jouent un son et ne déclenchent le retour visuel qu
 ## Pénalité sur appui inutile
 
 En mode Test actif, une mauvaise touche ou un appui hors de la zone rend la barre noire et bloque tous les appuis pendant 400 ms, sans modifier le score. Le défilement continue. Les appuis pendant le blocage ne prolongent pas sa durée. La barre redevient jaune ensuite. Relancer le test, changer de mode ou interrompre la partie réinitialise le blocage. Le mode Libre reste inchangé. Patch : `patches/penalite-appui.json`.
-
-## Fond animé
-
-Le fond utilise un lent mouvement de caméra avec zoom et déplacement sur une couche indépendante. Les notes et les contrôles restent fixes. L’image d’origine reste intacte et les fonds personnalisés utilisent aussi cet effet. L’animation est désactivée si le système demande une réduction des mouvements. Patch : `patches/fond-anime.json`.
