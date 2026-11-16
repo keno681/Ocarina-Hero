@@ -24,6 +24,7 @@ app.whenReady().then(async () => {
   session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
   gameDir = path.join(app.getPath('userData'), 'game');
   await fs.mkdir(gameDir, { recursive: true });
+  await fs.copyFile(path.join(__dirname, '..', 'gamepad.js'), path.join(gameDir, 'gamepad.js'));
   for (const name of files) {
     try { await fs.copyFile(path.join(__dirname, '..', name), path.join(gameDir, name), require('node:fs').constants.COPYFILE_EXCL); }
     catch (error) { if (error.code !== 'EEXIST') throw error; }
@@ -49,7 +50,10 @@ app.whenReady().then(async () => {
       webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true } });
     secure(gameWindow);
     // The button is injected after every load, so editing HTML cannot accidentally remove it.
-    gameWindow.webContents.on('did-finish-load', () => {
+    gameWindow.webContents.on('did-finish-load', async () => {
+      await gameWindow.webContents.executeJavaScript(await fs.readFile(path.join(__dirname, '..', 'gamepad.js'), 'utf8'));
+      // Also unlock sound for existing locally edited game files.
+      await gameWindow.webContents.executeJavaScript("document.addEventListener('ocarina-unlock-audio', () => { if(typeof context === 'function') context(); });");
       gameWindow.webContents.executeJavaScript(`(() => {
         if(document.getElementById('desktop-editor')) return;
         const b=document.createElement('button'); b.id='desktop-editor'; b.title='Modifier les fichiers du jeu'; b.setAttribute('aria-label',b.title);

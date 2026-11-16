@@ -12,7 +12,7 @@ python3 -m http.server 8000 --bind 0.0.0.0
 
 Ouvrir le port 8000 dans un navigateur. Cliquer sur les boutons ou utiliser **L, R, Q (carré), T (triangle), O (rond)**. Le navigateur active l’audio après une interaction. Le volume se règle dans l’instrument.
 
-Les cinq touches permettent de jouer librement. Les sons sont synthétisés avec Web Audio, sans fichier audio externe. Aucune prise en charge de manette physique n’est encore implémentée.
+Les cinq touches permettent de jouer librement. Les sons sont synthétisés avec Web Audio, sans fichier audio externe. Les manettes sont prises en charge par l’API Gamepad.
 
 ## Fond personnalisé
 
@@ -25,3 +25,13 @@ Installer les dépendances avec `npm ci`, lancer avec `npm start` et créer l’
 La Pokéball en bas à droite ouvre un éditeur pour `index.html`, `style.css` et `app.js`. Le bouton **Valider et redémarrer le jeu** enregistre le fichier ouvert et recharge le jeu. Les fichiers modifiables sont copiés au premier lancement dans le dossier de données utilisateur de l’application (`%APPDATA%/ocarina-hero/game` sous Windows). Chaque enregistrement conserve une copie `.bak`. Le bouton « Rétablir l’original » restaure la version fournie avec l’application. Les modifications locales sont conservées aux lancements suivants ; elles ne sont pas synchronisées avec GitHub et ne sont pas écrasées par les nouvelles versions de l’exécutable. Pour adopter un nouveau fichier fourni avec l’application, utiliser « Rétablir l’original » après avoir sauvegardé ses changements.
 
 Le workflow **Application Windows** construit le `.exe` à chaque envoi sur `main`. Une fois le workflow réussi, télécharger l’archive **Ocarina-Hero-Windows** dans les artefacts du lancement GitHub Actions, puis la décompresser. Cette version n’est pas signée.
+
+## Manettes (version 0.2.0)
+
+Les manettes exposées par Windows et Chromium sont détectées automatiquement après un appui sur un bouton. USB et Bluetooth sont pris en charge si le pilote expose une manette compatible. Le jeu ne peut pas scanner les périphériques qui ne sont pas exposés par le système comme manettes (MIDI, microphones, etc.).
+
+Les manettes au mapping standard utilisent les boutons 4, 5, 2, 3, 1 : L1/LB, R1/RB, carré/X, triangle/Y et rond/B. Plusieurs manettes peuvent jouer. Cliquer sur **Activer le son** si nécessaire. Un appui joue une note ; maintenir le bouton ne répète pas la note.
+
+**Associer les touches** permet de sélectionner une manette et d’appuyer successivement sur cinq boutons distincts pour L, R, carré, triangle et rond. Les associations sont conservées dans ce navigateur quand le stockage est disponible. Une manette non standard doit être associée avant de jouer. Le jeu ignore les entrées manette lorsque sa fenêtre n’a pas le focus.
+
+La version Windows charge cette prise en charge même avec les anciens fichiers locaux du jeu, sans écraser les modifications de l’éditeur. Le test physique des différents modèles reste à faire sur le PC utilisateur.

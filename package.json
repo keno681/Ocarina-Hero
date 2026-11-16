@@ -1,13 +1,14 @@
 {
   "name": "ocarina-hero",
-  "version": "0.1.0",
-  "description": "Un ocarina à cinq touches",
+  "version": "0.2.0",
+  "description": "Un ocarina \u00e0 cinq touches",
   "author": "keno681",
   "private": true,
   "main": "desktop/main.cjs",
   "scripts": {
     "start": "electron .",
-    "dist:win": "electron-builder --win portable --x64"
+    "dist:win": "electron-builder --win portable --x64",
+    "test": "node --test test/*.cjs"
   },
   "build": {
     "appId": "com.keno681.ocarinahero",
@@ -17,7 +18,8 @@
       "index.html",
       "app.js",
       "style.css",
-      "package.json"
+      "package.json",
+      "gamepad.js"
     ],
     "win": {
       "target": "portable",

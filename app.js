@@ -67,3 +67,5 @@ document.querySelector('#background-file').addEventListener('change', event => {
   reader.onerror = () => { status.textContent = 'Impossible de lire cette image. Réessayez.'; };
   reader.readAsDataURL(file);
 });
+
+document.addEventListener('ocarina-unlock-audio', () => context());
