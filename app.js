@@ -1,4 +1,34 @@
 'use strict';
+document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
+  if (document.getElementById('rumble-test')) return;
+  const panel = document.createElement('section');
+  panel.style.cssText = 'padding:16px;margin-top:16px;background:#f5f3e9;color:#263d39;border-radius:12px;text-align:left';
+  panel.innerHTML = '<button id="rumble-test" style="padding:12px">Tester la vibration</button><p id="rumble-result" role="status">Sélectionnez votre manette puis lancez le test.</p>';
+  (document.querySelector('.instrument') || document.querySelector('main')).appendChild(panel);
+  const button = panel.querySelector('#rumble-test'), result = panel.querySelector('#rumble-result');
+  button.onclick = async () => {
+    button.disabled = true;
+    try {
+      const pads = Array.from(navigator.getGamepads?.() || []).filter(p => p && p.connected !== false);
+      const index = Number(document.getElementById('pad-select')?.value);
+      const pad = pads.find(p => p.index === index) || pads[0];
+      if (!pad) { result.textContent = 'Aucune manette détectée.'; return; }
+      result.textContent = 'Test en cours : ' + pad.id;
+      const actuator = pad.vibrationActuator;
+      let state;
+      if (actuator?.playEffect) {
+        if (actuator.effects?.length && !Array.from(actuator.effects).includes('dual-rumble')) {
+          result.textContent = 'Vibration classique non proposée. Effets disponibles : ' + Array.from(actuator.effects).join(', '); return;
+        }
+        state = await actuator.playEffect('dual-rumble',{startDelay:0,duration:500,weakMagnitude:1,strongMagnitude:1});
+      } else if (pad.hapticActuators?.[0]?.pulse) state = await pad.hapticActuators[0].pulse(1,500);
+      else { result.textContent = 'Vibration non exposée par Windows/le navigateur pour cette connexion. Essayez la DualSense avec un câble USB de données.'; return; }
+      result.textContent = 'Réponse du pilote : ' + String(state) + '. ' + (state === 'complete' || state === true ? 'Commande exécutée. Avez-vous senti la vibration ?' : 'Copiez cette réponse dans notre conversation.');
+    } catch (error) { result.textContent = 'Test refusé : ' + error.name + ' — ' + error.message; }
+    finally { button.disabled = false; }
+  };
+}));
+
 window.ocarinaHitFeedback = function(verdict) {
   const bar = document.getElementById('hit-bar');
   bar?.animate([{background:'#fff',boxShadow:'0 0 20px #fff,0 0 55px #ffdf40',transform:'scaleX(2.4)'},{background:'#ffdf40',boxShadow:'0 0 10px #ffe35c,0 0 24px #ffce32',transform:'scaleX(1)'}],{duration:180,easing:'ease-out'});
