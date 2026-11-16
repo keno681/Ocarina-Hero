@@ -150,3 +150,11 @@ La partition convertie est conservée sur ce PC quand le stockage le permet ; le
 Validation : tests de tempo, sustain, running status, accords, transposition, fichiers invalides, partition mémorisée et timing du mode musique ; import réel d’un MIDI, écoute/arrêt et fin de partie vérifiés dans Chromium.
 
 Patch complet : `patches/midi-musique-1.json`. Les réglages, les associations et les autres modes sont conservés.
+
+## Démo MIDI (version 0.8.0)
+
+Après avoir importé un MIDI (ou avec la partition convertie déjà mémorisée), choisir **Démo MIDI** à gauche puis **Lancer la démo**. Le jeu joue automatiquement la mélodie convertie au passage de la barre jaune, maintient les notes longues et valide toutes les notes en Parfait. Les sons, les auras et le score suivent la démonstration. Les appuis manuels sont ignorés pendant ce mode.
+
+Le bouton **Arrêter la démo**, un changement de mode, l’ouverture des options ou la perte de focus interrompent la démo et libèrent les sons et maintiens automatiques. À la fin, **Rejouer la démo** permet de recommencer. Une partition MIDI est nécessaire ; le bouton de lancement reste désactivé sinon. La démo reprend le tempo, la piste et l’adaptation vers les cinq notes du lecteur MIDI.
+
+Validation : scénario Chromium avec import, écoute, démo complète en 3/3 et 300 points, sans exception ni voix restant active ; tests des notes courtes, maintiens, arrêt et absence de fichier. Patch complet : `patches/demo-midi.json`. Les paramètres et la musique importée restent conservés sur ce PC.

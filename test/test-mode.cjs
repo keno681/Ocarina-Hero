@@ -20,7 +20,7 @@ function setup(lateLanes=false,shifted=false,gated=false,penalty=false,navigatio
  if(modern){const full=fs.readFileSync('app.js','utf8');const end=full.lastIndexOf('document.addEventListener',full.indexOf("  if (document.getElementById('note-bindings'))"));source=full.slice(full.indexOf('window.ocarinaTimingJudge ='),end);}
  vm.createContext(ctx);if(modern){ctx.TextDecoder=TextDecoder;vm.runInContext(fs.readFileSync('app.js','utf8').split('// BEGIN MIDI SUPPORT')[1].split('// END MIDI SUPPORT')[0],ctx);}
  vm.runInContext(source,ctx);events.DOMContentLoaded();lanesReady=true;flushTimers();
- return {ctx,nodes,classes,played,barStyles,body,advance(time){now=time;flushTimers();if(active)tick();},get active(){return active;}};
+ return {ctx,nodes,classes,played,barStyles,body,box,advance(time){now=time;flushTimers();if(active)tick();},get active(){return active;}};
 }
 test('timing windows distinguish perfect, good and incorrect hits',()=>{
  const {ctx}=setup();assert.equal(ctx.ocarinaTimingJudge(-90),'Parfait');assert.equal(ctx.ocarinaTimingJudge(150),'Bien');assert.equal(ctx.ocarinaTimingJudge(181),null);
@@ -118,4 +118,28 @@ test('music 1 restores an imported score and uses its own timing and note count'
  s.nodes.get('#test-start').onclick();
  for(let time=25;time<=5000;time+=25){s.advance(time);if(time===2475)s.ctx.input(0);if(time===3475)s.ctx.input(1);}
  assert.match(s.nodes.get('#test-feedback').textContent,/Terminé.*2\/2.*200/);assert.equal(s.active,false);
+});
+
+test('MIDI demo plays and perfects every note and hold without manual input',()=>{
+ const song={name:'Demo',events:[{note:0,time:0,duration:200},{note:1,time:1000,duration:500}]};
+ const s=setup(false,true,false,false,false,true,song),mode=s.nodes.get('#game-mode');
+ s.ctx.ocarinaDemoHeld=new Set();s.ctx.ocarinaHeldNote=note=>s.ctx.ocarinaDemoHeld.has(note);
+ mode.value='demo';mode.onchange();s.ctx.input(4);assert.deepEqual(s.played,[]);
+ s.nodes.get('#test-start').onclick();for(let time=25;time<=5000;time+=25)s.advance(time);
+ assert.deepEqual(s.played,[0,1]);assert.match(s.nodes.get('#test-feedback').textContent,/Démo parfaite.*2\/2.*200/);assert.equal(s.ctx.ocarinaDemoHeld.size,0);assert.equal(s.active,false);
+});
+test('stopping demo clears automatic holds, pending releases and the round',()=>{
+ const song={name:'Demo',events:[{note:0,time:0,duration:200},{note:1,time:2000,duration:500}]};
+ const s=setup(false,true,false,false,false,true,song),mode=s.nodes.get('#game-mode');
+ s.ctx.ocarinaDemoHeld=new Set();s.ctx.ocarinaHeldNote=note=>s.ctx.ocarinaDemoHeld.has(note);
+ mode.value='demo';mode.onchange();s.nodes.get('#test-start').onclick();for(let time=25;time<=2500;time+=25)s.advance(time);
+ assert.ok(s.ctx.ocarinaDemoHeld.has(0));
+ const toolbar=s.box.children.find(node=>node.id==='test-toolbar'),stop=toolbar.children.find(node=>node.id==='demo-stop');stop.onclick();
+ assert.equal(s.ctx.ocarinaDemoHeld.size,0);assert.equal(s.active,false);assert.equal(stop.hidden,true);
+ s.advance(6000);assert.deepEqual(s.played,[0]);assert.match(s.nodes.get('#test-feedback').textContent,/arrêtée/);
+});
+
+test('demo without an imported MIDI stays disabled and prompts for a file',()=>{
+ const s=setup(false,true,false,false,false,true),mode=s.nodes.get('#game-mode');mode.value='demo';mode.onchange();
+ assert.equal(s.nodes.get('#test-start').disabled,true);s.nodes.get('#test-start').onclick();assert.match(s.nodes.get('#test-feedback').textContent,/Importez un MIDI/);assert.equal(s.active,false);
 });

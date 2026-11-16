@@ -172,6 +172,7 @@ function createOcarinaVoice(ctx, frequency, output, onended = () => {}) {
 
 // BEGIN HOLD SUPPORT
 const heldVoices = new Map();
+window.ocarinaDemoHeld = new Set();
 const heldKeys = new Map(), heldPointers = new Map();
 function heldGamepadNotes() {
   const notes = new Set();
@@ -186,7 +187,7 @@ function heldGamepadNotes() {
   } catch (_) {}
   return notes;
 }
-window.ocarinaHeldNote = note => Array.from(heldKeys.values()).includes(note) || Array.from(heldPointers.values()).includes(note) || heldGamepadNotes().has(note);
+window.ocarinaHeldNote = note => window.ocarinaDemoHeld.has(note) || Array.from(heldKeys.values()).includes(note) || Array.from(heldPointers.values()).includes(note) || heldGamepadNotes().has(note);
 window.ocarinaReleaseNote = note => releaseHeldVoice(note);
 function releaseHeldVoice(note) {
   const voice = heldVoices.get(note);
@@ -200,7 +201,7 @@ function releaseHeldVoice(note) {
   document.querySelectorAll('#note-lanes .lane-label')[note]?.classList.remove('held-note');
 }
 window.ocarinaReleaseNotes = () => {
-  heldKeys.clear(); heldPointers.clear();
+  heldKeys.clear(); heldPointers.clear(); window.ocarinaDemoHeld.clear();
   for (const note of Array.from(heldVoices.keys())) releaseHeldVoice(note);
 };
 function playHeldNote(note) {
@@ -259,7 +260,7 @@ document.addEventListener('DOMContentLoaded',() => {
     const gamepad = heldGamepadNotes();
     const volume = document.querySelector('#volume').value;
     for (const [note,voice] of heldVoices) {
-      const down = Array.from(heldKeys.values()).includes(note) || Array.from(heldPointers.values()).includes(note) || gamepad.has(note);
+      const down = window.ocarinaDemoHeld.has(note) || Array.from(heldKeys.values()).includes(note) || Array.from(heldPointers.values()).includes(note) || gamepad.has(note);
       if (!down || !document.hasFocus() || document.body.classList.contains('options-open')) releaseHeldVoice(note);
       else if (volume !== previousVolume) voice.output.gain.setTargetAtTime(Number(volume)/100*.22,voice.ctx.currentTime,.02);
     }
@@ -343,18 +344,21 @@ document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
   document.head.appendChild(style);
   const options = document.createElement('section');
   options.style.cssText = 'margin-top:16px;padding:16px;border-radius:12px;background:#f5f3e9;color:#263d39;text-align:left';
-  options.innerHTML = '<label for="game-mode">Mode de jeu : </label><select id="game-mode"><option value="free">Libre</option><option value="test">Test</option><option value="music1">Test musique 1</option></select><p>Test : appuyez quand le centre de la touche atteint la barre jaune. Fermez les options puis lancez le test.</p>';
+  options.innerHTML = '<label for="game-mode">Mode de jeu : </label><select id="game-mode"><option value="free">Libre</option><option value="test">Test</option><option value="music1">Test musique 1</option><option value="demo">Démo MIDI</option></select><p>Test : appuyez quand le centre de la touche atteint la barre jaune. Fermez les options puis lancez le test.</p>';
   (document.querySelector('.instrument') || document.querySelector('main')).appendChild(options);
   const mode = options.querySelector('#game-mode');
-  try { const savedMode=localStorage.getItem('ocarina-game-mode'); mode.value = ['test','music1'].includes(savedMode) ? savedMode : 'free'; } catch (_) { mode.value = 'free'; }
+  try { const savedMode=localStorage.getItem('ocarina-game-mode'); mode.value = ['test','music1','demo'].includes(savedMode) ? savedMode : 'free'; } catch (_) { mode.value = 'free'; }
   const toolbar = document.createElement('div'); toolbar.id = 'test-toolbar';
   toolbar.innerHTML = '<span id="test-mode-label"></span><button id="test-start">Lancer le test</button><span id="test-feedback" role="status" aria-live="polite"></span>';
   box.appendChild(toolbar);
   const start = toolbar.querySelector('#test-start'), feedback = toolbar.querySelector('#test-feedback');
+  const demoStop=document.createElement('button');demoStop.id='demo-stop';demoStop.textContent='Arrêter la démo';demoStop.hidden=true;toolbar.appendChild(demoStop);
   const tracks = Array.from(box.querySelectorAll('.lane-track'));
   let running = false, targets = [], clock = null, spawned = 0, judged = 0, correct = 0, score = 0, nextSpawn = 0;
   let total = 8, midiSong = null, midiSource = null, midiName = '', musicStart = 0;
   let previewTimer = null, previewVoices = new Set(), midiReadId = 0;
+  const demoReleaseTimers = new Map();
+  const isMidiMode = () => mode.value === 'music1' || mode.value === 'demo';
   try { const saved = JSON.parse(localStorage.getItem('ocarina-midi-song') || 'null'); if (window.ocarinaMidi?.validSong(saved)) midiSong = saved; } catch (_) {}
   const midiPanel = document.createElement('section');
   midiPanel.style.cssText = 'margin-top:16px;padding:16px;border-radius:12px;background:#f5f3e9;color:#263d39;text-align:left';
@@ -440,6 +444,8 @@ document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
     report('Appui inutile : blocage 0,4 s');
   }
   function clearRound() {
+    for(const timer of demoReleaseTimers.values()) clearTimeout(timer);demoReleaseTimers.clear();
+    window.ocarinaDemoHeld?.clear();demoStop.hidden=true;
     stopMidiPreview();
     window.ocarinaReleaseNotes?.();
     resetLock();
@@ -451,19 +457,34 @@ document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
   function finishIfReady() {
     if (judged === total && spawned === total) {
       running = false; clearInterval(clock); clock = null; start.disabled = false;
-      report('Terminé !'); start.textContent = 'Rejouer';
+      report(mode.value === 'demo' ? 'Démo parfaite !' : 'Terminé !'); start.textContent = mode.value === 'demo' ? 'Rejouer la démo' : 'Rejouer';demoStop.hidden=true;
     }
   }
   function settleTarget(target,success) {
     if (target.done) return;
     target.done = true; judged++;
-    if (target.length) window.ocarinaReleaseNote?.(target.note);
+    if (target.length) { window.ocarinaDemoHeld?.delete(target.note); window.ocarinaReleaseNote?.(target.note); }
     if (success) {
       correct++; score += target.verdict === 'Parfait' ? 100 : 60;
       target.animation.cancel(); target.chip.remove(); targets = targets.filter(t => t !== target);
       window.ocarinaHitFeedback?.(target.verdict); report(target.length ? 'Note tenue !' : target.verdict + ' !');
     } else { target.chip.style.opacity = '.25'; report(target.holding ? 'Relâché trop tôt' : 'Raté'); }
     finishIfReady();
+  }
+  function autoPlayTarget(target) {
+    if(target.demoStarted || target.done) return;
+    target.demoStarted=true;target.verdict='Parfait';
+    clearTimeout(demoReleaseTimers.get(target.note));demoReleaseTimers.delete(target.note);
+    window.ocarinaDemoHeld?.add(target.note);
+    original(target.note);
+    if(target.length) {
+      target.holding=true;target.chip.style.background='#ffe469';target.chip.style.color='#49360b';
+      window.ocarinaHitFeedback?.('Parfait');report('Parfait ! Maintien automatique…');
+    } else {
+      settleTarget(target,true);
+      const timer=setTimeout(()=>{demoReleaseTimers.delete(target.note);window.ocarinaDemoHeld?.delete(target.note);window.ocarinaReleaseNote?.(target.note);},target.midiDuration || 140);
+      demoReleaseTimers.set(target.note,timer);
+    }
   }
   function spawn(now, event = null, expectedAt = null) {
     const note = event ? event.note : Math.floor(Math.random() * 5), track = tracks[note];
@@ -476,9 +497,9 @@ document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
     const from = expectedAt === null ? track.clientWidth + 8 : hitPosition + (expectedAt - now) * .25;
     const animation = chip.animate([{transform:'translateX(' + from + 'px)'},{transform:'translateX(' + (-48 - holdLength * .25) + 'px)'}],{duration:Math.max(1,(from + 48)/0.25 + holdLength),easing:'linear',fill:'forwards'});
     const at = expectedAt === null ? now + (from - hitPosition)/0.25 : expectedAt;
-    const target = {note,chip,animation,at,endAt:at + holdLength,length:holdLength,holding:false,verdict:null,done:false};
+    const target = {note,chip,animation,at,endAt:at + holdLength,length:holdLength,midiDuration:event?.duration || 140,demoStarted:false,holding:false,verdict:null,done:false};
     animation.onfinish = () => {
-      if (running && !target.done) settleTarget(target,false);
+      if (running && !target.done) { if(mode.value==='demo'){autoPlayTarget(target);settleTarget(target,true);}else settleTarget(target,false); }
       chip.remove(); targets = targets.filter(t => t !== target);
     };
     targets.push(target); spawned++;
@@ -489,7 +510,7 @@ document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
       clearRound(); feedback.textContent = 'Test interrompu. Relancez quand vous êtes prêt.'; return;
     }
     const now = performance.now();
-    if (mode.value === 'music1') {
+    if (isMidiMode()) {
       let batch = 0;
       while (spawned < total && batch++ < 128) {
         const event = midiSong.events[spawned], track = tracks[event.note];
@@ -501,6 +522,7 @@ document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
     } else if (spawned < total && now >= nextSpawn) { spawn(now); nextSpawn = now + 900; }
     for (const target of targets) {
       if (target.done) continue;
+      if (mode.value === 'demo' && !target.demoStarted && now >= target.at) { autoPlayTarget(target); if(target.done) continue; }
       if (target.holding) {
         if (now >= target.endAt) settleTarget(target,true);
         else if (!window.ocarinaHeldNote?.(target.note)) settleTarget(target,now >= target.endAt - 90);
@@ -510,16 +532,18 @@ document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
   }
   start.onclick = () => {
     if (document.body.classList.contains('options-open')) return;
-    if (mode.value === 'music1' && !midiSong) { feedback.textContent = 'Importez un MIDI avec le bouton à gauche.'; return; }
+    if (isMidiMode() && !midiSong) { feedback.textContent = 'Importez un MIDI avec le bouton à gauche.'; return; }
     try { context(); } catch (_) {}
     clearRound(); spawned = judged = correct = score = 0;
-    total = mode.value === 'music1' ? midiSong.events.length : 8;
+    total = isMidiMode() ? midiSong.events.length : 8;
     musicStart = performance.now() + Math.max(...tracks.map(track => (track.clientWidth + 8 - (track.clientWidth * .22 + 2 - 20)) / .25)) + 800;
     running = true; start.disabled = true; nextSpawn = performance.now();
-    report('Préparez-vous…'); tick(); clock = setInterval(tick,25);
+    report(mode.value === 'demo' ? 'Démo : préparez-vous à écouter…' : 'Préparez-vous…');demoStop.hidden=mode.value!=='demo';tick(); if(running)clock = setInterval(tick,25);
   };
+  demoStop.onclick=()=>{clearRound();feedback.textContent='Démo arrêtée.';};
   const original = input;
   input = function(note) {
+    if(mode.value === 'demo') return;
     if (mode.value === 'free') { original(note); return; }
     if (!running || document.body.classList.contains('options-open')) return;
     const zone = document.getElementById('hit-bar');
@@ -547,9 +571,10 @@ document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
   function applyMode() {
     clearRound(); document.body.classList.toggle('test-mode',mode.value !== 'free');
     start.hidden = mode.value === 'free';
-    start.disabled = mode.value === 'music1' && !midiSong;
-    toolbar.querySelector('#test-mode-label').textContent = mode.value === 'music1' ? 'TEST MUSIQUE 1' : mode.value === 'test' ? 'MODE TEST' : 'MODE LIBRE';
-    feedback.textContent = mode.value === 'music1' ? (midiSong ? midiSong.name + ' · ' + midiSong.events.length + ' notes. Cliquez sur Lancer le test.' : 'Importez un MIDI avec le bouton à gauche.') : mode.value === 'test' ? '8 notes : maintenez les touches longues jusqu’au bout.' : 'Jouez à votre rythme.';
+    start.disabled = isMidiMode() && !midiSong;
+    start.textContent=mode.value==='demo'?'Lancer la démo':'Lancer le test';
+    toolbar.querySelector('#test-mode-label').textContent = mode.value === 'demo' ? 'DÉMO MIDI' : mode.value === 'music1' ? 'TEST MUSIQUE 1' : mode.value === 'test' ? 'MODE TEST' : 'MODE LIBRE';
+    feedback.textContent = isMidiMode() ? (midiSong ? midiSong.name + ' · ' + midiSong.events.length + ' notes. Cliquez sur '+(mode.value==='demo'?'Lancer la démo.':'Lancer le test.') : 'Importez un MIDI avec le bouton à gauche.') : mode.value === 'test' ? '8 notes : maintenez les touches longues jusqu’au bout.' : 'Jouez à votre rythme.';
     try { localStorage.setItem('ocarina-game-mode',mode.value); } catch (_) {}
   }
   options.hidden = true;
@@ -557,9 +582,9 @@ document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
   modeMenu.id = 'main-game-modes';
   modeMenu.setAttribute('aria-label','Mode de jeu');
   modeMenu.style.cssText = 'position:fixed;left:20px;top:100px;z-index:1000;display:flex;flex-direction:column;gap:10px';
-  const modeButtons = ['free','test','music1'].map(value => {
+  const modeButtons = ['free','test','music1','demo'].map(value => {
     const button = document.createElement('button');
-    button.textContent = value === 'free' ? 'Libre' : value === 'music1' ? 'Test musique 1' : 'Test';
+    button.textContent = value === 'free' ? 'Libre' : value === 'music1' ? 'Test musique 1' : value === 'demo' ? 'Démo MIDI' : 'Test';
     button.style.cssText = 'min-width:110px;padding:13px 22px;border:1px solid #d8caa8;border-radius:14px;font:16px Arial;cursor:pointer;box-shadow:0 4px 18px #0004';
     button.onclick = () => { mode.value = value; mode.onchange(); };
     modeMenu.appendChild(button);

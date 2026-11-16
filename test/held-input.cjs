@@ -26,3 +26,8 @@ test('non-held actions keep short notes and typing in fields does not sustain',(
  const s=setup();s.ctx.play(1);assert.deepEqual(s.taps,[1]);
  s.fire('keydown',{key:'l',code:'KeyL',target:{tagName:'INPUT'}});assert.equal(s.ctx.ocarinaHeldNote(0),false);
 });
+
+test('automatic demo notes sustain without a physical button and release afterwards',()=>{
+ const s=setup();s.ctx.ocarinaDemoHeld.add(0);s.ctx.play(0);s.poll();assert.equal(s.stops.length,0);
+ s.ctx.ocarinaDemoHeld.delete(0);s.poll();assert.equal(s.stops.length,1);
+});
