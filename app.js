@@ -66,8 +66,43 @@ function play(index, duration = .48) {
   const floating = document.querySelector('#floating-note');
   floating.classList.remove('animate'); void floating.offsetWidth; floating.classList.add('animate');
 }
+function noteDialogue() {
+  let box = document.getElementById('note-dialogue');
+  if (box) return box;
+  const style = document.createElement('style');
+  style.textContent = '#note-dialogue{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);width:min(1000px,calc(100% - 160px));padding:18px 22px;border:2px solid #d8caa8;border-radius:24px;background:#17251ce8;color:#fff1ce;z-index:900;box-shadow:0 12px 40px #0006;pointer-events:none}#note-dialogue .caption{font:12px Arial;letter-spacing:2px;margin-bottom:12px}#note-dialogue .history{display:flex;justify-content:flex-end;gap:14px;overflow:hidden;min-height:72px;align-items:center}#note-dialogue .played{display:flex;align-items:center;justify-content:center;flex:0 0 64px;height:64px;border:1px solid currentColor;border-radius:16px;background:#ffffff10;font:bold 36px Arial}#note-dialogue .hint{font:15px Georgia;margin:auto;color:#dfd5b9}@media(max-width:600px){#note-dialogue{bottom:84px;width:calc(100% - 24px);padding:14px}#note-dialogue .played{flex-basis:50px;height:50px;font-size:28px}}';
+  document.head.appendChild(style);
+  box = document.createElement('section');
+  box.id = 'note-dialogue';
+  box.setAttribute('aria-label', 'Historique des touches jouées');
+  box.innerHTML = '<div class="caption">VOTRE MÉLODIE</div><div class="history"><span class="hint">Jouez une note…</span></div>';
+  document.body.appendChild(box);
+  return box;
+}
+function showPlayedNote(index) {
+  const history = noteDialogue().querySelector('.history');
+  history.querySelector('.hint')?.remove();
+  const positions = new Map(Array.from(history.children, item => [item, item.getBoundingClientRect().left]));
+  const item = document.createElement('span');
+  item.className = 'played';
+  item.textContent = ['L', 'R', '□', '△', '○'][index];
+  item.style.color = ['#e8dfc6', '#e8dfc6', '#e5a0c9', '#9ed9b1', '#f1a08e'][index];
+  item.setAttribute('aria-label', ['L', 'R', 'Carré', 'Triangle', 'Rond'][index]);
+  history.appendChild(item);
+  while (history.children.length > 24) history.firstElementChild.remove();
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+  for (const previous of history.children) {
+    if (previous === item) continue;
+    const distance = positions.get(previous) - previous.getBoundingClientRect().left;
+    previous.animate?.([{ transform: `translateX(${distance}px)` }, { transform: 'translateX(0)' }], { duration: 240, easing: 'ease-out' });
+  }
+  item.animate?.([{ opacity: 0, transform: 'translateX(40px)' }, { opacity: 1, transform: 'translateX(0)' }], { duration: 240 });
+}
+document.addEventListener('DOMContentLoaded', noteDialogue);
+
 function input(index) {
   play(index);
+  showPlayedNote(index);
   status.textContent = `${names[index]} — laissez venir la prochaine note.`;
 }
 buttons.forEach((button, i) => button.addEventListener('click', () => input(i)));

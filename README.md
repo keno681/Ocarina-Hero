@@ -61,3 +61,7 @@ La capture fournie par l’utilisateur est intégrée sans retouche, en WebP san
 ## Image seule (version 0.3.2)
 
 L’interface est masquée au lancement pour laisser le fond visible. Le bouton Options ouvre les réglages (fond, volume et manettes). Le bouton de fermeture ou Échap les masque. Le clavier et les manettes continuent à jouer lorsque les réglages sont fermés. La Pokéball reste disponible. Le patch `patches/interface-options.json` applique ce changement à une installation existante.
+
+## Bulle des touches (version 0.3.3)
+
+Une grande bulle en bas affiche L, R, carré, triangle et rond. Chaque nouvelle note arrive à droite et décale les précédentes vers la gauche. Le clavier, les clics et les manettes partagent cet historique, limité aux 24 dernières notes. Les animations respectent la préférence de réduction des mouvements. Le patch `patches/bulle-touches.json` permet la mise à jour dans la Pokéball.
