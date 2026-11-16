@@ -86,3 +86,9 @@ Les lignes sont affichées du plus aigu au plus grave, de haut en bas : Ré aigu
 ## Aura jaune
 
 À chaque note, la touche fixe s’illumine en jaune et se réduit légèrement pendant 90 ms, sans transition. Un nouvel appui sur la même touche renouvelle cet effet. La note défilante reçoit aussi un bref éclat. Clavier et manette partagent cet effet. Patch : `patches/aura-jaune.json`.
+
+## Association manette par note
+
+Dans Options, sélectionner la manette puis cliquer sur le bouton face à Ré grave, Fa, La, Si ou Ré aigu. Relâcher puis appuyer sur le bouton physique voulu. Le réglage est appliqué immédiatement et conservé par modèle de manette. Un bouton déjà utilisé échange ses deux notes pour conserver cinq associations distinctes. Annuler, déconnecter la manette ou quitter la fenêtre annule la capture. L’association ne joue pas de note.
+
+Le patch `patches/manette-par-note.json` fonctionne avec les anciennes versions du module manette : il remplace sa lecture des notes sans nécessiter un nouvel exécutable. Les clics physiques et le clavier restent disponibles.

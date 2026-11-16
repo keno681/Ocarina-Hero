@@ -1,5 +1,88 @@
 'use strict';
 document.addEventListener('DOMContentLoaded', () => queueMicrotask(() => {
+  if (document.getElementById('note-bindings')) return;
+  const panel = document.createElement('section');
+  panel.id = 'note-bindings';
+  panel.style.cssText = 'padding:16px;margin-top:16px;border-radius:12px;background:#f5f3e9;color:#263d39;text-align:left;font:14px Arial';
+  panel.innerHTML = '<strong>Manette : associer chaque note</strong><p>Sélectionnez votre manette au-dessus, cliquez sur une note puis appuyez sur le bouton voulu.</p><div id="binding-rows"></div><p id="binding-status" role="status"></p><button id="binding-cancel" hidden>Annuler</button>';
+  (document.querySelector('.instrument') || document.querySelector('main')).appendChild(panel);
+  for (const id of ['pad-config','pad-cancel']) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
+  const message = panel.querySelector('#binding-status');
+  const cancel = panel.querySelector('#binding-cancel');
+  const noteNames = ['Ré grave','Fa','La','Si','Ré aigu'];
+  const defaults = [4,5,2,3,1];
+  let mappings = {}, previous = new Map(), capture = null;
+  try { mappings = JSON.parse(localStorage.getItem('ocarina-gamepad-mappings') || '{}') || {}; } catch (_) {}
+  if (typeof mappings !== 'object' || Array.isArray(mappings)) mappings = {};
+  function mapping(pad) {
+    const value = mappings[pad.id];
+    return Array.isArray(value) && value.length === 5 && value.every(n => Number.isInteger(n) && n >= 0 && n < 128) ? value.slice() : defaults.slice();
+  }
+  function pads() { return Array.from(navigator.getGamepads?.() || []).filter(p => p && p.connected !== false); }
+  function selected(all) { return all.find(p => p.index === Number(document.getElementById('pad-select')?.value)) || all[0]; }
+  function stop(text) { capture = null; cancel.hidden = true; message.textContent = text; }
+  cancel.onclick = () => stop('Association annulée.');
+  const fields = noteNames.map((name,note) => {
+    const row = document.createElement('div'); row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 0';
+    const label = document.createElement('span'); label.textContent = name;
+    const button = document.createElement('button'); button.style.cssText = 'padding:9px 14px;min-width:130px';
+    button.onclick = () => {
+      try {
+        const pad = selected(pads());
+        if (!pad) { stop('Connectez une manette puis appuyez sur un bouton.'); return; }
+        capture = {id:pad.id,index:pad.index,note};
+        cancel.hidden = false;
+        message.textContent = name + ' : relâchez les boutons puis appuyez sur celui à associer.';
+      } catch (_) { stop('Accès à la manette indisponible.'); }
+    };
+    row.append(label,button); panel.querySelector('#binding-rows').appendChild(row);
+    return button;
+  });
+  // Ignore the old controller loop's simulated clicks; physical clicks still work.
+  document.addEventListener('click', event => {
+    if (!event.isTrusted && event.target.closest?.('.note')) event.stopImmediatePropagation();
+  }, true);
+  function poll() {
+    try {
+      const all = pads(), chosen = selected(all);
+      const ps = ['✕','○','□','△','L1','R1','L2','R2','Créer','Options','L3','R3','↑','↓','←','→','PS','Pavé'];
+      fields.forEach((button,i) => {
+        button.disabled = !chosen;
+        const value = chosen && mapping(chosen)[i];
+        const text = !chosen ? 'Non connectée' : (document.getElementById('display-mode')?.value === 'ps5' ? ps[value] || 'Bouton ' + (value + 1) : 'Bouton ' + (value + 1));
+        if (button.textContent !== text) button.textContent = text;
+      });
+      if (capture && (!chosen || chosen.id !== capture.id || chosen.index !== capture.index || !document.hasFocus())) stop('Association annulée : manette ou fenêtre inactive.');
+      const next = new Map();
+      for (const pad of all) {
+        const down = pad.buttons.map(b => b.pressed || b.value > .5);
+        const old = previous.get(pad.index) || [];
+        next.set(pad.index,down);
+        if (capture) {
+          if (pad.id !== capture.id || pad.index !== capture.index) continue;
+          const button = down.findIndex((pressed,i) => pressed && !old[i]);
+          if (button < 0) continue;
+          const values = mapping(pad), note = capture.note, other = values.indexOf(button);
+          if (other >= 0 && other !== note) values[other] = values[note];
+          values[note] = button; mappings[pad.id] = values;
+          let saved = true;
+          try { localStorage.setItem('ocarina-gamepad-mappings',JSON.stringify(mappings)); } catch (_) { saved = false; }
+          stop((saved ? 'Enregistré : ' : 'Appliqué pour cette session : ') + noteNames[note] + (other >= 0 && other !== note ? ' — boutons échangés avec ' + noteNames[other] : ''));
+          continue;
+        }
+        if (!document.hasFocus()) continue;
+        const configured = Object.hasOwn(mappings,pad.id);
+        if (!configured && pad.mapping !== 'standard') continue;
+        mapping(pad).forEach((button,note) => { if (down[button] && !old[button]) input(note); });
+      }
+      previous = next;
+    } catch (_) { message.textContent = 'Lecture de la manette indisponible. Nouvelle tentative…'; }
+    finally { requestAnimationFrame(poll); }
+  }
+  requestAnimationFrame(poll);
+}));
+
+document.addEventListener('DOMContentLoaded', () => queueMicrotask(() => {
   if (window.ocarinaAura) return;
   window.ocarinaAura = true;
   const timers = new Map();
