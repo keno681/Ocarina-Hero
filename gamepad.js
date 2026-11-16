@@ -62,7 +62,7 @@
     }
     let pads;
     try { pads = Array.from(navigator.getGamepads?.() || []).filter(p => p && p.connected !== false); }
-    catch (error) { find('pad-status').textContent = `Accès aux manettes refusé (${error.name}). Cliquez sur Rechercher les manettes pour afficher le diagnostic.`; return; }
+    catch (error) { signature = null; find('pad-status').textContent = `Accès aux manettes refusé (${error.name}). Cliquez sur Rechercher les manettes pour afficher le diagnostic.`; return; }
     const key = pads.map(p => `${p.index}:${p.id}:${p.mapping}`).join('|');
     if (key !== signature || !find('pad-status').textContent) {
       signature = key;

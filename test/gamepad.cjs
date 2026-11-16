@@ -30,7 +30,7 @@ test('polling recovers after a temporary API error', () => {
   const panel = element('panel'); panel.querySelector = element;
   let frame, fail = true;
   const context = {
-    document: { createElement:()=>panel, querySelector:()=>element('instrument'), hasFocus:()=>true },
+    document: { createElement:()=>panel, querySelector:()=>element('instrument'), querySelectorAll:()=>[], hasFocus:()=>true },
     navigator: {getGamepads(){if(fail)throw new Error('Temporary');return [];}},
     localStorage:{getItem:()=>null},requestAnimationFrame:fn=>{frame=fn;},addEventListener(){}
   };
