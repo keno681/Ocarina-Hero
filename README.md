@@ -106,3 +106,7 @@ La barre lumineuse traverse les cinq lignes et se situe à 22 % de la piste, apr
 ## Réparation des installations ayant accumulé des doublons
 
 `patches/reparation-app-barre.json` remplace entièrement `app.js` par la version nettoyée comprenant un seul mode Test, la barre continue à 22 % de la piste et le retour de réussite. Ce bloc évite les remplacements ambigus des anciennes installations ayant empilé plusieurs copies du mode Test. Il conserve les préférences et associations stockées dans le navigateur et ne modifie ni `index.html` ni `style.css`. Il remplace les modifications de code locales éventuelles d’`app.js` ; la console sauvegarde la version précédente et permet l’annulation.
+
+## Appuis dans la zone jaune
+
+En mode Test, les appuis ne jouent un son et ne déclenchent le retour visuel que si une note de la bonne ligne chevauche effectivement la barre jaune. Les appuis avant l’entrée, après la sortie, sur une mauvaise touche ou en dehors d’une partie active sont ignorés sans pénalité. Une note déjà réussie ne peut pas être rejouée. Le mode Libre reste inchangé. Patch : `patches/test-zone-obligatoire.json`.

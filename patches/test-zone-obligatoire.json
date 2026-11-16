@@ -1,0 +1,11 @@
+{
+  "format": "ocarina-patch-v1",
+  "title": "Mode Test : appuis uniquement dans la zone jaune",
+  "files": [
+    {
+      "path": "app.js",
+      "old": "    original(note);",
+      "new": "    if (mode.value !== 'test') { original(note); return; }\n    if (!running || document.body.classList.contains('options-open')) return;\n    const zone = document.getElementById('hit-bar');\n    if (!zone) return;\n    const area = zone.getBoundingClientRect();\n    const allowed = targets.some(target => {\n      if (target.done || target.note !== note) return false;\n      const rect = target.chip.getBoundingClientRect();\n      return rect.left <= area.right && rect.right >= area.left;\n    });\n    if (!allowed) return;\n    original(note);"
+    }
+  ]
+}

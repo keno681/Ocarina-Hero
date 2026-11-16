@@ -132,6 +132,17 @@ document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
   };
   const original = input;
   input = function(note) {
+    if (mode.value !== 'test') { original(note); return; }
+    if (!running || document.body.classList.contains('options-open')) return;
+    const zone = document.getElementById('hit-bar');
+    if (!zone) return;
+    const area = zone.getBoundingClientRect();
+    const allowed = targets.some(target => {
+      if (target.done || target.note !== note) return false;
+      const rect = target.chip.getBoundingClientRect();
+      return rect.left <= area.right && rect.right >= area.left;
+    });
+    if (!allowed) return;
     original(note);
     if (mode.value !== 'test' || !running || document.body.classList.contains('options-open')) return;
     const now = performance.now();
