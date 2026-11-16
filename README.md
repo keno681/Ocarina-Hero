@@ -35,3 +35,21 @@ Les manettes au mapping standard utilisent les boutons 4, 5, 2, 3, 1 : L1/LB, R1
 **Associer les touches** permet de sélectionner une manette et d’appuyer successivement sur cinq boutons distincts pour L, R, carré, triangle et rond. Les associations sont conservées dans ce navigateur quand le stockage est disponible. Une manette non standard doit être associée avant de jouer. Le jeu ignore les entrées manette lorsque sa fenêtre n’a pas le focus.
 
 La version Windows charge cette prise en charge même avec les anciens fichiers locaux du jeu, sans écraser les modifications de l’éditeur. Le test physique des différents modèles reste à faire sur le PC utilisateur.
+
+## Console Pokéball (version 0.3.0)
+
+Le fonctionnement reprend celui du [jeu des wraps](https://github.com/keno681/essai) :
+
+1. Ouvrir la Pokéball dans le coin du jeu.
+2. Coller le bloc JSON de modification fourni dans notre conversation.
+3. Cliquer sur **Aperçu des modifications** et consulter les fichiers avant/après.
+4. Cliquer sur **Valider et redémarrer le jeu**.
+5. Utiliser **Annuler la dernière modification** si nécessaire.
+
+La console conserve aussi un éditeur avancé replié. Les fichiers restent sur ce PC ; les envois sur GitHub sont faits séparément pendant notre conversation. Pas de connexion à un assistant, pas d’abonnement et pas de synchronisation automatique.
+
+Le format `ocarina-patch-v1` contient un titre et une liste `files`. Chaque opération vise `index.html`, `style.css` ou `app.js` et utilise soit `old`/`new` (une seule correspondance exacte), soit `write` (contenu complet). Le nom de format `cosmowrap-patch-v1` est aussi accepté, mais les blocs propres au jeu des wraps (.gd, scènes Godot…) ne sont pas applicables à Ocarina Hero. Les chemins arbitraires, créations et suppressions de fichiers ne sont pas pris en charge. Voir `patches/exemple-couleur.json` pour un exemple utilisable puis annulable.
+
+L’aperçu ne modifie rien. La syntaxe JavaScript est vérifiée sans exécuter le code. Une sauvegarde complète des fichiers concernés est écrite dans `game/.console-backups` avant l’application ; en cas d’échec d’écriture, la console tente de restaurer les fichiers déjà écrits. L’application et l’annulation sont refusées si les fichiers ont changé depuis leur état attendu. Les tests ne garantissent pas qu’un patch est exempt de bogues de jeu : l’annulation permet de revenir à l’état précédent.
+
+Le moteur reste Electron : nous reprenons la console de blocs de modification, sans convertir le jeu en Godot. Les blocs exécutent du code du jeu ; appliquer seulement les modifications dont on connaît la provenance.

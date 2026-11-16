@@ -2,6 +2,7 @@ const { app, BrowserWindow, session, ipcMain } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs/promises');
 const { pathToFileURL } = require('node:url');
+const { PatchEngine } = require('./patch-engine.cjs');
 const files = ['index.html', 'style.css', 'app.js'];
 let gameWindow, editorWindow, gameDir;
 const editorURL = pathToFileURL(path.join(__dirname, 'editor.html')).href;
@@ -29,6 +30,10 @@ app.whenReady().then(async () => {
     try { await fs.copyFile(path.join(__dirname, '..', name), path.join(gameDir, name), require('node:fs').constants.COPYFILE_EXCL); }
     catch (error) { if (error.code !== 'EEXIST') throw error; }
   }
+  const patches = new PatchEngine(gameDir);
+  ipcMain.handle('patch:preview', (event, text) => { verify(event); return patches.preview(text); });
+  ipcMain.handle('patch:apply', event => { verify(event); const title = patches.apply(); gameWindow?.reload(); return title; });
+  ipcMain.handle('patch:undo', event => { verify(event); const title = patches.undo(); gameWindow?.reload(); return title; });
   ipcMain.handle('editor:read', async (event, name) => { verify(event, name); return fs.readFile(path.join(gameDir, name), 'utf8'); });
   ipcMain.handle('editor:save', async (event, name, content) => {
     verify(event, name);

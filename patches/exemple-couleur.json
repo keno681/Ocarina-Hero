@@ -1,0 +1,11 @@
+{
+  "format": "ocarina-patch-v1",
+  "title": "Une touche dorée",
+  "files": [
+    {
+      "path": "style.css",
+      "old": "--accent:#47776a",
+      "new": "--accent:#a87932"
+    }
+  ]
+}
