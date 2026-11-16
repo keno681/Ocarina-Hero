@@ -1,4 +1,71 @@
 'use strict';
+// BEGIN OCARINA TONE
+const ocarinaBreathBuffers = new WeakMap();
+const ocarinaRooms = new WeakMap();
+function ocarinaDestination(ctx) {
+  if (ocarinaRooms.has(ctx)) return ocarinaRooms.get(ctx);
+  const input = ctx.createGain(), reverb = ctx.createConvolver(), wet = ctx.createGain();
+  const impulse = ctx.createBuffer(2,Math.floor(ctx.sampleRate * .18),ctx.sampleRate);
+  for(let channel=0;channel<2;channel++) {
+    const data = impulse.getChannelData(channel); let smooth = 0;
+    for(let i=0;i<data.length;i++) {
+      smooth = .55 * smooth + .45 * (Math.random() * 2 - 1);
+      data[i] = smooth * .025 * Math.exp(-i / ctx.sampleRate * 38);
+    }
+    data[Math.floor(ctx.sampleRate * .023)] += .12;
+    data[Math.floor(ctx.sampleRate * .041)] += .07;
+  }
+  reverb.buffer = impulse; reverb.normalize = false; wet.gain.value = .18;
+  input.connect(ctx.destination); input.connect(reverb).connect(wet).connect(ctx.destination);
+  ocarinaRooms.set(ctx,input); return input;
+}
+
+function createOcarinaVoice(ctx, frequency, output, onended = () => {}) {
+  const now = ctx.currentTime, nodes = [], sources = [];
+  const toneFilter = ctx.createBiquadFilter();
+  toneFilter.type = 'lowpass'; toneFilter.frequency.value = Math.min(7500,frequency * 3.2); toneFilter.Q.value = .45;
+  toneFilter.connect(output); nodes.push(toneFilter);
+  const vibrato = ctx.createOscillator(), depth = ctx.createGain();
+  vibrato.type = 'sine'; vibrato.frequency.value = 5.1;
+  depth.gain.setValueAtTime(0,now);
+  depth.gain.setValueAtTime(0,now + .18);
+  depth.gain.linearRampToValueAtTime(3,now + .55);
+  vibrato.connect(depth); nodes.push(depth); sources.push(vibrato);
+  [1,2,3].forEach((harmonic,i) => {
+    const oscillator = ctx.createOscillator(), gain = ctx.createGain();
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(frequency * harmonic * .995,now);
+    oscillator.frequency.exponentialRampToValueAtTime(frequency * harmonic,now + .045);
+    gain.gain.value = [.96,.032,.009][i];
+    depth.connect(oscillator.detune);
+    oscillator.connect(gain).connect(toneFilter); nodes.push(gain); sources.push(oscillator);
+  });
+  let buffer = ocarinaBreathBuffers.get(ctx);
+  if (!buffer) {
+    buffer = ctx.createBuffer(1,ctx.sampleRate * 2,ctx.sampleRate);
+    const data = buffer.getChannelData(0); let softened = 0;
+    for(let i=0;i<data.length;i++) { softened = .72 * softened + .28 * (Math.random() * 2 - 1); data[i] = softened; }
+    ocarinaBreathBuffers.set(ctx,buffer);
+  }
+  const breath = ctx.createBufferSource(), breathFilter = ctx.createBiquadFilter(), breathGain = ctx.createGain();
+  breath.buffer = buffer; breath.loop = true;
+  breathFilter.type = 'bandpass'; breathFilter.frequency.value = Math.min(6000,frequency * 2.5); breathFilter.Q.value = .8;
+  breathGain.gain.setValueAtTime(.07,now);
+  breathGain.gain.exponentialRampToValueAtTime(.024,now + .12);
+  breath.connect(breathFilter).connect(breathGain).connect(output);
+  nodes.push(breathFilter,breathGain); sources.push(breath);
+  let remaining = sources.length, stopped = false;
+  for(const source of sources) {
+    source.onended = () => {
+      source.disconnect();
+      if (--remaining === 0) { for(const node of nodes) node.disconnect(); onended(); }
+    };
+    source.start(now);
+  }
+  return { stop(at) { if (stopped) return; stopped = true; for(const source of sources) source.stop(at); } };
+}
+// END OCARINA TONE
+
 // BEGIN HOLD SUPPORT
 const heldVoices = new Map();
 const heldKeys = new Map(), heldPointers = new Map();
@@ -37,16 +104,8 @@ function playHeldNote(note) {
   const ctx = context(), now = ctx.currentTime, output = ctx.createGain();
   output.gain.setValueAtTime(0,now);
   output.gain.linearRampToValueAtTime(Number(document.querySelector('#volume').value) / 100 * .22,now + .02);
-  output.connect(ctx.destination);
-  let ended = 0;
-  const oscillators = [1,2,3].map((harmonic,i) => {
-    const oscillator = ctx.createOscillator(), gain = ctx.createGain();
-    oscillator.type = 'sine'; oscillator.frequency.value = frequencies[note] * harmonic;
-    gain.gain.value = [1,.13,.035][i];
-    oscillator.connect(gain).connect(output); oscillator.start(now);
-    oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); if (++ended === 3) output.disconnect(); };
-    return oscillator;
-  });
+  output.connect(ocarinaDestination(ctx));
+  const oscillators = [createOcarinaVoice(ctx,frequencies[note],output,() => output.disconnect())];
   const voice = {ctx,output,oscillators,released:null}; heldVoices.set(note,voice);
   const label = document.querySelectorAll('#note-lanes .lane-label')[note];
   label?.classList.add('held-note');
@@ -599,16 +658,11 @@ function playTap(index, duration = .48) {
   const volume = Number(document.querySelector('#volume').value) / 100;
   output.gain.setValueAtTime(0, now);
   output.gain.linearRampToValueAtTime(volume * .22, now + .035);
-  output.gain.exponentialRampToValueAtTime(.001, now + duration);
-  output.connect(ctx.destination);
-  [1, 2, 3].forEach((harmonic, i) => {
-    const oscillator = ctx.createOscillator(), gain = ctx.createGain();
-    oscillator.type = 'sine'; oscillator.frequency.value = frequencies[index] * harmonic;
-    gain.gain.value = [1, .13, .035][i];
-    oscillator.connect(gain).connect(output); oscillator.start(now); oscillator.stop(now + duration + .03);
-    oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
-  });
-  setTimeout(() => output.disconnect(), (duration + .1) * 1000);
+  output.gain.setValueAtTime(volume * .22, now + duration * .65);
+  output.gain.linearRampToValueAtTime(0, now + duration);
+  output.connect(ocarinaDestination(ctx));
+  const instrument = createOcarinaVoice(ctx,frequencies[index],output,() => output.disconnect());
+  instrument.stop(now + duration + .03);
   clearTimeout(active.get(index));
   buttons[index].classList.add('active');
   active.set(index, setTimeout(() => buttons[index].classList.remove('active'), 300));
