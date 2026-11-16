@@ -1,0 +1,11 @@
+{
+  "format": "ocarina-patch-v1",
+  "title": "Aigus en haut, graves en bas",
+  "files": [
+    {
+      "path": "style.css",
+      "old": ":root{",
+      "new": "#note-lanes{display:flex;flex-direction:column-reverse}\n:root{"
+    }
+  ]
+}

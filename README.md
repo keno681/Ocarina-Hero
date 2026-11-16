@@ -80,3 +80,5 @@ Dans Options, choisir PS5, N64, Clavier ou Switch. Le choix reste enregistré su
 - Switch : Ré=L, Fa=R, La=X, Si=Y, Ré aigu=A. Ce choix est visuel : utiliser « Associer les touches » pour modifier les boutons physiques.
 
 Le patch `patches/affichage-touches.json` s’applique après le patch des cinq lignes.
+
+Les lignes sont affichées du plus aigu au plus grave, de haut en bas : Ré aigu, Si, La, Fa, Ré. Les associations aux touches restent inchangées. Patch : `patches/ordre-hauteur.json`.
