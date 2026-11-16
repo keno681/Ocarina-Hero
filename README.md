@@ -138,3 +138,15 @@ Validation : rendu réel des cinq notes par OfflineAudioContext dans Chromium, h
 La seconde révision ajoute une résonance douce autour de la fondamentale, un souffle accordé à la note et une ouverture progressive du filtre pendant l’attaque. Une turbulence filtrée fait varier légèrement la pression et la hauteur des notes tenues ; la vitesse du vibrato et la phase du souffle varient aussi d’un appui à l’autre. Les cinq hauteurs de référence restent inchangées. Le son reste synthétisé, sans échantillon externe.
 
 Rendu des cinq notes contrôlé dans Chromium : hauteur, niveau et extinction. Patch complet : `patches/son-ocarina-v2.json`. Les préférences enregistrées et toutes les commandes sont conservées.
+
+## Lecteur MIDI et Test musique 1 (version 0.7.0)
+
+Cliquer sur **Importer MIDI** à gauche et sélectionner un fichier `.mid` ou `.midi`. Le jeu choisit automatiquement une piste mélodique parmi les pistes suffisamment fournies, en favorisant les hauteurs aiguës. Dans Options → Test musique 1 · MIDI, le choix **Piste** permet d’en sélectionner une autre et **Écouter la mélodie convertie** permet l’écoute et l’arrêt. Le bouton **Test musique 1** à gauche sélectionne le morceau importé ; cliquer sur **Lancer le test** dans la bulle. Libre et Test aléatoire restent disponibles.
+
+Le lecteur prend en charge les fichiers MIDI standard de type 0 et 1, le tempo et ses changements, le running status, les fins de note à vélocité zéro et la pédale de sustain. Les canaux de percussion sont ignorés. La mélodie est rendue monophonique et transposée par octaves vers les cinq hauteurs Ré/Fa/La/Si/Ré aigu ; les autres hauteurs sont rapprochées de la note disponible la plus proche. Les accords et certains accompagnements sont simplifiés. Le panneau indique le nombre de notes, la transposition et les approximations. L’éventuel silence initial est retiré, puis les écarts temporels et durées de la mélodie sont conservés. Les notes d’au moins 250 ms deviennent des notes à tenir.
+
+La partition convertie est conservée sur ce PC quand le stockage le permet ; le fichier n’est pas envoyé sur Internet. Pour changer de piste après un redémarrage, réimporter le MIDI. Limites : 10 Mo par fichier, 256 pistes, 50 000 notes à l’analyse, 5 000 notes et 20 minutes pour la mélodie jouable. La durée d’une note est limitée à 60 secondes. Les fichiers de type 2 et à division SMPTE sont refusés avec un message explicite. L’écoute restitue la mélodie adaptée à l’ocarina, pas l’orchestration et les instruments d’origine du MIDI.
+
+Validation : tests de tempo, sustain, running status, accords, transposition, fichiers invalides, partition mémorisée et timing du mode musique ; import réel d’un MIDI, écoute/arrêt et fin de partie vérifiés dans Chromium.
+
+Patch complet : `patches/midi-musique-1.json`. Les réglages, les associations et les autres modes sont conservés.

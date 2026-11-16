@@ -1,4 +1,91 @@
 'use strict';
+// BEGIN MIDI SUPPORT
+(function(root) {
+  function parseMidi(input) {
+    const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
+    if (bytes.length > 10 * 1024 * 1024) throw Error('Fichier MIDI trop volumineux (10 Mo maximum).');
+    const view = new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
+    let pos = 0, limit = bytes.length;
+    const need = n => { if(pos + n > limit) throw Error('Fichier MIDI tronqué.'); };
+    const u8 = () => { need(1); return bytes[pos++]; };
+    const u16 = () => { need(2); const n=view.getUint16(pos); pos+=2; return n; };
+    const u32 = () => { need(4); const n=view.getUint32(pos); pos+=4; return n; };
+    const text = n => { need(n); const s=new TextDecoder().decode(bytes.subarray(pos,pos+n)); pos+=n; return s; };
+    const vlq = () => { let n=0; for(let i=0;i<4;i++){const b=u8();n=n*128+(b&127);if(!(b&128))return n;}throw Error('Durée MIDI invalide.'); };
+    if(text(4)!=='MThd') throw Error('Ce fichier n’est pas un MIDI standard.');
+    const header=u32();if(header<6)throw Error('En-tête MIDI invalide.');need(header);
+    const format=u16(), count=u16(), ppq=u16();pos+=header-6;
+    if(format>1)throw Error('MIDI de type 2 non pris en charge. Utilisez un type 0 ou 1.');
+    if(!ppq || ppq&0x8000)throw Error('Division SMPTE non prise en charge. Exportez le MIDI avec un tempo musical.');
+    if(!count || count>256 || (format===0&&count!==1))throw Error('Nombre de pistes MIDI invalide.');
+    const notes=[],tempos=[{tick:0,tempo:500000}],names=[];let attacks=0;
+    for(let track=0;track<count;track++){
+      limit=bytes.length;if(text(4)!=='MTrk')throw Error('Piste MIDI manquante.');const size=u32();need(size);const end=pos+size;limit=end;
+      let tick=0,running=0;const active=new Map(),held=Array.from({length:16},()=>[]),pedal=Array(16).fill(false);
+      function close(note,endTick){notes.push({...note,endTick:Math.max(note.tick+1,endTick)});if(notes.length>50000)throw Error('Trop de notes MIDI (50 000 maximum).');}
+      function off(channel,pitch){const key=channel+':'+pitch,queue=active.get(key);if(!queue?.length)return;const note=queue.shift();if(pedal[channel])held[channel].push(note);else close(note,tick);}
+      while(pos<end){
+        tick+=vlq();let status=u8();if(status<128){if(!running)throw Error('Événement MIDI sans statut.');pos--;status=running;}
+        if(status===255){running=0;const kind=u8(),length=vlq();need(length);
+          if(kind===0x51&&length===3){const tempo=(bytes[pos]<<16)|(bytes[pos+1]<<8)|bytes[pos+2];if(tempo)tempos.push({tick,tempo});}
+          if(kind===3)names[track]=new TextDecoder().decode(bytes.subarray(pos,pos+length)).slice(0,120);
+          pos+=length;if(kind===0x2f)break;continue;
+        }
+        if(status===0xf0||status===0xf7){running=0;const length=vlq();need(length);pos+=length;continue;}
+        if(status<0x80||status>=0xf0)throw Error('Événement système MIDI non pris en charge.');
+        running=status;const kind=status>>4,channel=status&15,a=u8(),b=(kind===12||kind===13)?0:u8();
+        if(a>127||b>127)throw Error('Valeur de note MIDI invalide.');
+        if(kind===9&&b>0){if(++attacks>50000)throw Error('Trop de notes MIDI (50 000 maximum).');const key=channel+':'+a;if(!active.has(key))active.set(key,[]);active.get(key).push({track,channel,pitch:a,velocity:b,tick});}
+        else if(kind===8||(kind===9&&b===0))off(channel,a);
+        else if(kind===11&&a===64){const on=b>=64;if(pedal[channel]&&!on){for(const note of held[channel])close(note,tick);held[channel]=[];}pedal[channel]=on;}
+        else if(kind===11&&(a===120||a===123)){
+          for(const queue of active.values())while(queue[0]?.channel===channel)close(queue.shift(),tick);
+          for(const note of held[channel])close(note,tick);held[channel]=[];
+        }
+      }
+      for(const queue of active.values())for(const note of queue)close(note,Math.max(tick,note.tick+ppq/2));
+      for(const queue of held)for(const note of queue)close(note,tick);
+      pos=end;
+    }
+    tempos.sort((a,b)=>a.tick-b.tick);const map=[];let lastTick=0,time=0,tempo=500000;
+    for(const event of tempos){time+=(event.tick-lastTick)*tempo/ppq/1000;map.push({tick:event.tick,time,tempo:event.tempo});lastTick=event.tick;tempo=event.tempo;}
+    function millis(tick){let lo=0,hi=map.length-1;while(lo<hi){const mid=Math.ceil((lo+hi)/2);if(map[mid].tick<=tick)lo=mid;else hi=mid-1;}const event=map[lo];return event.time+(tick-event.tick)*event.tempo/ppq/1000;}
+    const groups=new Map();
+    for(const note of notes){if(note.channel===9)continue;const key=note.track+':'+note.channel;if(!groups.has(key))groups.set(key,{id:key,name:(names[note.track]||'Piste '+(note.track+1))+' · canal '+(note.channel+1),notes:[]});groups.get(key).notes.push({pitch:note.pitch,start:millis(note.tick),end:millis(note.endTick),velocity:note.velocity});}
+    const tracks=Array.from(groups.values()).filter(group=>group.notes.length);
+    if(!tracks.length)throw Error('Aucune note mélodique trouvée (les percussions sont ignorées).');
+    for(const track of tracks)track.notes.sort((a,b)=>a.start-b.start||b.pitch-a.pitch);
+    const maxCount=Math.max(...tracks.map(track=>track.notes.length));
+    const candidates=tracks.filter(track=>track.notes.length>=Math.min(8,maxCount*.25));
+    candidates.sort((a,b)=>b.notes.reduce((n,x)=>n+x.pitch,0)/b.notes.length-a.notes.reduce((n,x)=>n+x.pitch,0)/a.notes.length);
+    return {tracks,defaultTrack:candidates[0].id};
+  }
+  function convertMidiTrack(track) {
+    const notes=[];let simplified=0;
+    for(const raw of track.notes){
+      if(raw.end-raw.start<35){simplified++;continue;}
+      const previous=notes.at(-1);
+      if(previous&&raw.start<previous.end&&raw.pitch<previous.pitch){simplified++;continue;}
+      if(previous&&raw.start<previous.end){previous.end=raw.start;simplified++;}
+      notes.push({...raw});
+    }
+    const melody=notes.filter(note=>note.end-note.start>=35);
+    if(!melody.length)throw Error('Cette piste ne contient pas de mélodie jouable.');
+    if(melody.length>5000)throw Error('Choisissez une piste de moins de 5 000 notes.');
+    const pitches=[74,77,81,83,86];
+    const nearest=pitch=>pitches.reduce((best,value,i)=>Math.abs(value-pitch)<Math.abs(pitches[best]-pitch)?i:best,0);
+    let transpose=0,best=Infinity;
+    for(let shift=-72;shift<=72;shift+=12){let error=0;for(const note of melody){const pitch=note.pitch+shift;error+=(pitch-pitches[nearest(pitch)])**2;}if(error<best){best=error;transpose=shift;}}
+    const origin=melody[0].start;let approximated=0;
+    const events=melody.map(raw=>{const pitch=raw.pitch+transpose,note=nearest(pitch);if(pitches[note]!==pitch)approximated++;return {note,time:Math.round(raw.start-origin),duration:Math.min(60000,Math.round(raw.end-raw.start))};});
+    if(events.at(-1).time+events.at(-1).duration>20*60*1000)throw Error('La mélodie dépasse 20 minutes.');
+    return {events,transpose,approximated,simplified};
+  }
+  function validMidiSong(song){return song&&typeof song.name==='string'&&Array.isArray(song.events)&&song.events.length>0&&song.events.length<=5000&&song.events.every((e,i)=>Number.isInteger(e.note)&&e.note>=0&&e.note<5&&Number.isFinite(e.time)&&e.time>=0&&e.time<=1200000&&Number.isFinite(e.duration)&&e.duration>=35&&e.duration<=60000&&(!i||e.time>=song.events[i-1].time));}
+  root.ocarinaMidi={parse:parseMidi,convert:convertMidiTrack,validSong:validMidiSong};
+})(globalThis);
+// END MIDI SUPPORT
+
 // BEGIN OCARINA TONE
 const ocarinaBreathBuffers = new WeakMap();
 const ocarinaRooms = new WeakMap();
@@ -70,7 +157,7 @@ function createOcarinaVoice(ctx, frequency, output, onended = () => {}) {
   breath.connect(turbulence); turbulence.connect(pitchDrift); turbulence.connect(pressureDrift).connect(pressure.gain);
   for (const source of sources) if (source !== vibrato) pitchDrift.connect(source.detune);
   nodes.push(breathFilter,breathGain,cavity,cavityGain,turbulence,pitchDrift,pressureDrift); sources.push(breath);
-  let remaining = sources.length, stopped = false;
+  let remaining = sources.length, stoppedAt = Infinity;
   for(const source of sources) {
     source.onended = () => {
       source.disconnect();
@@ -79,7 +166,7 @@ function createOcarinaVoice(ctx, frequency, output, onended = () => {}) {
     if (source === breath) source.start(now,Math.random() * 1.5);
     else source.start(now);
   }
-  return { stop(at) { if (stopped) return; stopped = true; for(const source of sources) source.stop(at); } };
+  return { stop(at) { if (at >= stoppedAt) return; stoppedAt = at; for(const source of sources) source.stop(at); } };
 }
 // END OCARINA TONE
 
@@ -256,17 +343,83 @@ document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
   document.head.appendChild(style);
   const options = document.createElement('section');
   options.style.cssText = 'margin-top:16px;padding:16px;border-radius:12px;background:#f5f3e9;color:#263d39;text-align:left';
-  options.innerHTML = '<label for="game-mode">Mode de jeu : </label><select id="game-mode"><option value="free">Libre</option><option value="test">Test</option></select><p>Test : appuyez quand le centre de la touche atteint la barre jaune. Fermez les options puis lancez le test.</p>';
+  options.innerHTML = '<label for="game-mode">Mode de jeu : </label><select id="game-mode"><option value="free">Libre</option><option value="test">Test</option><option value="music1">Test musique 1</option></select><p>Test : appuyez quand le centre de la touche atteint la barre jaune. Fermez les options puis lancez le test.</p>';
   (document.querySelector('.instrument') || document.querySelector('main')).appendChild(options);
   const mode = options.querySelector('#game-mode');
-  try { mode.value = localStorage.getItem('ocarina-game-mode') === 'test' ? 'test' : 'free'; } catch (_) { mode.value = 'free'; }
+  try { const savedMode=localStorage.getItem('ocarina-game-mode'); mode.value = ['test','music1'].includes(savedMode) ? savedMode : 'free'; } catch (_) { mode.value = 'free'; }
   const toolbar = document.createElement('div'); toolbar.id = 'test-toolbar';
   toolbar.innerHTML = '<span id="test-mode-label"></span><button id="test-start">Lancer le test</button><span id="test-feedback" role="status" aria-live="polite"></span>';
   box.appendChild(toolbar);
   const start = toolbar.querySelector('#test-start'), feedback = toolbar.querySelector('#test-feedback');
   const tracks = Array.from(box.querySelectorAll('.lane-track'));
   let running = false, targets = [], clock = null, spawned = 0, judged = 0, correct = 0, score = 0, nextSpawn = 0;
-  const total = 8;
+  let total = 8, midiSong = null, midiSource = null, midiName = '', musicStart = 0;
+  let previewTimer = null, previewVoices = new Set(), midiReadId = 0;
+  try { const saved = JSON.parse(localStorage.getItem('ocarina-midi-song') || 'null'); if (window.ocarinaMidi?.validSong(saved)) midiSong = saved; } catch (_) {}
+  const midiPanel = document.createElement('section');
+  midiPanel.style.cssText = 'margin-top:16px;padding:16px;border-radius:12px;background:#f5f3e9;color:#263d39;text-align:left';
+  midiPanel.innerHTML = '<strong>Test musique 1 · MIDI</strong><p>Importez un fichier .mid ou .midi, puis choisissez sa piste mélodique.</p><input id="midi-file" type="file" accept=".mid,.midi,audio/midi" hidden><button id="midi-import">Importer un MIDI</button> <button id="midi-preview">Écouter la mélodie convertie</button><p><label for="midi-track">Piste : </label><select id="midi-track" disabled></select></p><p id="midi-summary" role="status"></p>';
+  (document.querySelector('.instrument') || document.querySelector('main')).appendChild(midiPanel);
+  const midiFile = midiPanel.querySelector('#midi-file'), midiTrack = midiPanel.querySelector('#midi-track');
+  const midiImport = midiPanel.querySelector('#midi-import'), midiPreview = midiPanel.querySelector('#midi-preview'), midiSummary = midiPanel.querySelector('#midi-summary');
+  function describeMidi() {
+    midiSummary.textContent = midiSong ? midiSong.name + ' · ' + midiSong.events.length + ' notes · transposition ' + (midiSong.transpose || 0) + ' demi-tons · ' + (midiSong.approximated || 0) + ' notes rapprochées des cinq notes disponibles · ' + (midiSong.simplified || 0) + ' notes d’accompagnement simplifiées.' : 'Aucun fichier importé.';
+    midiPreview.disabled = !midiSong;
+  }
+  function stopMidiPreview() {
+    clearInterval(previewTimer); previewTimer = null;
+    for (const item of previewVoices) {
+      const now = item.ctx.currentTime;
+      item.output.gain.cancelScheduledValues(now); item.output.gain.setTargetAtTime(.0001,now,.01); item.voice.stop(now + .05);
+    }
+    previewVoices.clear(); midiPreview.textContent = 'Écouter la mélodie convertie';
+  }
+  function installMidiTrack() {
+    const track = midiSource.tracks.find(item => item.id === midiTrack.value);
+    if (!track) throw Error('Choisissez une piste MIDI.');
+    const converted = window.ocarinaMidi.convert(track);
+    clearRound(); midiSong = {...converted,name:(midiName + ' — ' + track.name).slice(0,240)};
+    try { localStorage.setItem('ocarina-midi-song',JSON.stringify(midiSong)); } catch (_) {}
+    describeMidi(); mode.value = 'music1'; mode.onchange();
+  }
+  midiImport.onclick = () => midiFile.click();
+  midiFile.onchange = async () => {
+    const file = midiFile.files?.[0]; if (!file) return;
+    const token = ++midiReadId; midiTrack.disabled = true; midiSummary.textContent = 'Lecture du fichier MIDI…';
+    try {
+      if (file.size > 10 * 1024 * 1024) throw Error('Fichier trop volumineux (10 Mo maximum).');
+      const data = await file.arrayBuffer(); if(token !== midiReadId) return;
+      const parsed = window.ocarinaMidi.parse(data);
+      window.ocarinaMidi.convert(parsed.tracks.find(track => track.id === parsed.defaultTrack));
+      midiSource = parsed; midiName = file.name.slice(0,120); midiTrack.replaceChildren();
+      for (const track of parsed.tracks) { const option=document.createElement('option');option.value=track.id;option.textContent=track.name+' ('+track.notes.length+' notes)';midiTrack.appendChild(option); }
+      midiTrack.value = parsed.defaultTrack; midiTrack.disabled = false; installMidiTrack();
+    } catch(error) { midiSummary.textContent = 'Import refusé : ' + error.message; feedback.textContent = midiSummary.textContent; }
+    finally { if(token === midiReadId) { midiFile.value = ''; midiTrack.disabled = !midiSource; } }
+  };
+  midiTrack.onchange = () => { try { installMidiTrack(); } catch(error) { midiSummary.textContent = 'Conversion refusée : ' + error.message; } };
+  midiPreview.onclick = () => {
+    if (previewTimer !== null) { stopMidiPreview(); return; }
+    if (!midiSong) return;
+    clearRound(); const ctx=context(), origin=performance.now(); let index=0;
+    midiPreview.textContent = 'Arrêter l’écoute';
+    function playNext() {
+      const elapsed=performance.now()-origin;
+      while(index<midiSong.events.length && midiSong.events[index].time<=elapsed) {
+        const event=midiSong.events[index++], duration=Math.max(.04,(event.duration-(elapsed-event.time))/1000), now=ctx.currentTime, output=ctx.createGain();
+        const level=Number(document.querySelector('#volume').value)/100*.22;
+        output.gain.setValueAtTime(0,now);output.gain.linearRampToValueAtTime(level,now+Math.min(.02,duration*.2));
+        output.gain.setValueAtTime(level,now+Math.max(.02,duration-.05));output.gain.linearRampToValueAtTime(0,now+duration);
+        output.connect(ocarinaDestination(ctx));let item;
+        const voice=createOcarinaVoice(ctx,frequencies[event.note],output,()=>{output.disconnect();previewVoices.delete(item);});
+        item={ctx,output,voice};previewVoices.add(item);voice.stop(now+duration+.05);
+      }
+      const last=midiSong.events.at(-1); if(elapsed>last.time+last.duration+200) stopMidiPreview();
+    }
+    previewTimer=setInterval(playNext,25);playNext();
+  };
+  describeMidi();
+
   let blockedUntil = 0, blockTimer = null;
   function resetLock() {
     blockedUntil = 0; clearTimeout(blockTimer); blockTimer = null;
@@ -287,6 +440,7 @@ document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
     report('Appui inutile : blocage 0,4 s');
   }
   function clearRound() {
+    stopMidiPreview();
     window.ocarinaReleaseNotes?.();
     resetLock();
     running = false; clearInterval(clock); clock = null;
@@ -311,16 +465,17 @@ document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
     } else { target.chip.style.opacity = '.25'; report(target.holding ? 'Relâché trop tôt' : 'Raté'); }
     finishIfReady();
   }
-  function spawn(now) {
-    const note = Math.floor(Math.random() * 5), track = tracks[note];
-    const holdLength = spawned % 3 === 1 ? 900 : 0;
+  function spawn(now, event = null, expectedAt = null) {
+    const note = event ? event.note : Math.floor(Math.random() * 5), track = tracks[note];
+    const holdLength = event ? (event.duration >= 250 ? event.duration : 0) : spawned % 3 === 1 ? 900 : 0;
     const chip = document.createElement('span'); chip.className = 'lane-note test-target';
     if (holdLength) { chip.style.width = (40 + holdLength * .25) + 'px'; chip.style.boxSizing = 'border-box'; chip.style.justifyContent = 'flex-start'; chip.style.paddingLeft = '4px'; }
     chip.textContent = window.ocarinaSymbols?.[note] || ['L','R','□','△','○'][note];
     track.appendChild(chip);
-    const from = track.clientWidth + 8;
-    const animation = chip.animate([{transform:'translateX(' + from + 'px)'},{transform:'translateX(' + (-48 - holdLength * .25) + 'px)'}],{duration:(from + 48)/0.25 + holdLength,easing:'linear',fill:'forwards'});
-    const at = now + (from - (track.clientWidth * 0.22 + 2 - 20))/0.25;
+    const hitPosition = track.clientWidth * 0.22 + 2 - 20;
+    const from = expectedAt === null ? track.clientWidth + 8 : hitPosition + (expectedAt - now) * .25;
+    const animation = chip.animate([{transform:'translateX(' + from + 'px)'},{transform:'translateX(' + (-48 - holdLength * .25) + 'px)'}],{duration:Math.max(1,(from + 48)/0.25 + holdLength),easing:'linear',fill:'forwards'});
+    const at = expectedAt === null ? now + (from - hitPosition)/0.25 : expectedAt;
     const target = {note,chip,animation,at,endAt:at + holdLength,length:holdLength,holding:false,verdict:null,done:false};
     animation.onfinish = () => {
       if (running && !target.done) settleTarget(target,false);
@@ -334,7 +489,16 @@ document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
       clearRound(); feedback.textContent = 'Test interrompu. Relancez quand vous êtes prêt.'; return;
     }
     const now = performance.now();
-    if (spawned < total && now >= nextSpawn) { spawn(now); nextSpawn = now + 900; }
+    if (mode.value === 'music1') {
+      let batch = 0;
+      while (spawned < total && batch++ < 128) {
+        const event = midiSong.events[spawned], track = tracks[event.note];
+        const travel = (track.clientWidth + 8 - (track.clientWidth * .22 + 2 - 20)) / .25;
+        const at = musicStart + event.time;
+        if (now < at - travel) break;
+        spawn(now,event,at);
+      }
+    } else if (spawned < total && now >= nextSpawn) { spawn(now); nextSpawn = now + 900; }
     for (const target of targets) {
       if (target.done) continue;
       if (target.holding) {
@@ -346,14 +510,17 @@ document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
   }
   start.onclick = () => {
     if (document.body.classList.contains('options-open')) return;
+    if (mode.value === 'music1' && !midiSong) { feedback.textContent = 'Importez un MIDI avec le bouton à gauche.'; return; }
     try { context(); } catch (_) {}
     clearRound(); spawned = judged = correct = score = 0;
+    total = mode.value === 'music1' ? midiSong.events.length : 8;
+    musicStart = performance.now() + Math.max(...tracks.map(track => (track.clientWidth + 8 - (track.clientWidth * .22 + 2 - 20)) / .25)) + 800;
     running = true; start.disabled = true; nextSpawn = performance.now();
     report('Préparez-vous…'); tick(); clock = setInterval(tick,25);
   };
   const original = input;
   input = function(note) {
-    if (mode.value !== 'test') { original(note); return; }
+    if (mode.value === 'free') { original(note); return; }
     if (!running || document.body.classList.contains('options-open')) return;
     const zone = document.getElementById('hit-bar');
     if (!zone) return;
@@ -366,7 +533,7 @@ document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
     });
     if (!allowed) { lockInputs(); return; }
     original(note);
-    if (mode.value !== 'test' || !running || document.body.classList.contains('options-open')) return;
+    if (mode.value === 'free' || !running || document.body.classList.contains('options-open')) return;
     const now = performance.now();
     const target = targets.filter(t => !t.done && !t.holding && t.note === note).sort((a,b) => Math.abs(a.at-now)-Math.abs(b.at-now))[0];
     const verdict = target && window.ocarinaTimingJudge(now - target.at);
@@ -378,10 +545,11 @@ document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
     } else settleTarget(target,true);
   };
   function applyMode() {
-    clearRound(); document.body.classList.toggle('test-mode',mode.value === 'test');
-    start.hidden = mode.value !== 'test';
-    toolbar.querySelector('#test-mode-label').textContent = mode.value === 'test' ? 'MODE TEST' : 'MODE LIBRE';
-    feedback.textContent = mode.value === 'test' ? '8 notes : maintenez les touches longues jusqu’au bout.' : 'Jouez à votre rythme.';
+    clearRound(); document.body.classList.toggle('test-mode',mode.value !== 'free');
+    start.hidden = mode.value === 'free';
+    start.disabled = mode.value === 'music1' && !midiSong;
+    toolbar.querySelector('#test-mode-label').textContent = mode.value === 'music1' ? 'TEST MUSIQUE 1' : mode.value === 'test' ? 'MODE TEST' : 'MODE LIBRE';
+    feedback.textContent = mode.value === 'music1' ? (midiSong ? midiSong.name + ' · ' + midiSong.events.length + ' notes. Cliquez sur Lancer le test.' : 'Importez un MIDI avec le bouton à gauche.') : mode.value === 'test' ? '8 notes : maintenez les touches longues jusqu’au bout.' : 'Jouez à votre rythme.';
     try { localStorage.setItem('ocarina-game-mode',mode.value); } catch (_) {}
   }
   options.hidden = true;
@@ -389,9 +557,9 @@ document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
   modeMenu.id = 'main-game-modes';
   modeMenu.setAttribute('aria-label','Mode de jeu');
   modeMenu.style.cssText = 'position:fixed;left:20px;top:100px;z-index:1000;display:flex;flex-direction:column;gap:10px';
-  const modeButtons = ['free','test'].map(value => {
+  const modeButtons = ['free','test','music1'].map(value => {
     const button = document.createElement('button');
-    button.textContent = value === 'free' ? 'Libre' : 'Test';
+    button.textContent = value === 'free' ? 'Libre' : value === 'music1' ? 'Test musique 1' : 'Test';
     button.style.cssText = 'min-width:110px;padding:13px 22px;border:1px solid #d8caa8;border-radius:14px;font:16px Arial;cursor:pointer;box-shadow:0 4px 18px #0004';
     button.onclick = () => { mode.value = value; mode.onchange(); };
     modeMenu.appendChild(button);
@@ -406,9 +574,10 @@ document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
     }
   }
   mode.onchange = () => { applyMode(); syncModeButtons(); };
+  const importShortcut=document.createElement('button');importShortcut.textContent='Importer MIDI';importShortcut.style.cssText='padding:12px;border:1px solid #d8caa8;border-radius:12px;background:#17251cdd;color:#fff1ce;cursor:pointer';importShortcut.onclick=()=>midiFile.click();modeMenu.appendChild(importShortcut);
   document.body.appendChild(modeMenu);
   syncModeButtons();
-  window.addEventListener('blur', () => { if(running) { clearRound(); feedback.textContent = 'Test interrompu. Relancez quand vous êtes prêt.'; } });
+  window.addEventListener('blur', () => { stopMidiPreview(); if(running) { clearRound(); feedback.textContent = 'Test interrompu. Relancez quand vous êtes prêt.'; } });
   window.addEventListener('resize', () => { if(running) { clearRound(); feedback.textContent = 'Taille modifiée : relancez le test.'; } });
   applyMode();
 }));

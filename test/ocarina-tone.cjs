@@ -20,3 +20,8 @@ test('breath buffers and short room response are cached per audio context',()=>{
  const s=setup(),room=s.ctx.ocarinaDestination(s.audio);assert.equal(s.ctx.ocarinaDestination(s.audio),room);assert.equal(s.buffers.length,1);
  s.ctx.createOcarinaVoice(s.audio,587,s.node('output'));s.ctx.createOcarinaVoice(s.audio,880,s.node('output'));assert.equal(s.buffers.length,2);
 });
+test('scheduled MIDI preview voices can be stopped earlier without extending their lifetime',()=>{
+ const s=setup(),voice=s.ctx.createOcarinaVoice(s.audio,880,s.node('output'));
+ voice.stop(10);voice.stop(2);voice.stop(5);
+ assert.ok(s.sources.every(source=>source.stops.length===2&&source.stops[0]===10&&source.stops[1]===2));
+});
