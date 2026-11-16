@@ -25,6 +25,8 @@ app.whenReady().then(async () => {
   session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
   gameDir = path.join(app.getPath('userData'), 'game');
   await fs.mkdir(gameDir, { recursive: true });
+  await fs.mkdir(path.join(gameDir, 'assets'), { recursive: true });
+  await fs.copyFile(path.join(__dirname, '..', 'assets', 'link-ocarina.webp'), path.join(gameDir, 'assets', 'link-ocarina.webp'));
   await fs.copyFile(path.join(__dirname, '..', 'gamepad.js'), path.join(gameDir, 'gamepad.js'));
   for (const name of files) {
     try { await fs.copyFile(path.join(__dirname, '..', name), path.join(gameDir, name), require('node:fs').constants.COPYFILE_EXCL); }

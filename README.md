@@ -53,3 +53,7 @@ Le format `ocarina-patch-v1` contient un titre et une liste `files`. Chaque opé
 L’aperçu ne modifie rien. La syntaxe JavaScript est vérifiée sans exécuter le code. Une sauvegarde complète des fichiers concernés est écrite dans `game/.console-backups` avant l’application ; en cas d’échec d’écriture, la console tente de restaurer les fichiers déjà écrits. L’application et l’annulation sont refusées si les fichiers ont changé depuis leur état attendu. Les tests ne garantissent pas qu’un patch est exempt de bogues de jeu : l’annulation permet de revenir à l’état précédent.
 
 Le moteur reste Electron : nous reprenons la console de blocs de modification, sans convertir le jeu en Godot. Les blocs exécutent du code du jeu ; appliquer seulement les modifications dont on connaît la provenance.
+
+## Fond de Link (version 0.3.1)
+
+La capture fournie par l’utilisateur est intégrée sans retouche, en WebP sans perte, à ses dimensions originales (3840 × 1654). Les nouvelles installations disposent de l’image en local. Pour une installation existante avec la console Pokéball, `patches/fond-link.json` active le fond en chargeant cette même image depuis GitHub : une connexion Internet est alors nécessaire. Le bouton « Choisir le fond » reste disponible ; un fond personnalisé déjà enregistré prend priorité sur le fond par défaut.

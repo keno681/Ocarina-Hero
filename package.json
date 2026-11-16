@@ -1,6 +1,6 @@
 {
   "name": "ocarina-hero",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Un ocarina \u00e0 cinq touches",
   "author": "keno681",
   "private": true,
@@ -19,7 +19,8 @@
       "app.js",
       "style.css",
       "package.json",
-      "gamepad.js"
+      "gamepad.js",
+      "assets/**/*"
     ],
     "win": {
       "target": "portable",

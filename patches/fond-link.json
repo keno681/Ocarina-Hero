@@ -1,0 +1,16 @@
+{
+  "format": "ocarina-patch-v1",
+  "title": "Ta capture de Link en fond",
+  "files": [
+    {
+      "path": "index.html",
+      "old": "<body>",
+      "new": "<body class=\"has-background\">"
+    },
+    {
+      "path": "style.css",
+      "old": ":root{",
+      "new": ":root{--scene:url(\"https://raw.githubusercontent.com/keno681/Ocarina-Hero/main/assets/link-ocarina.webp\");"
+    }
+  ]
+}
