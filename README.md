@@ -69,3 +69,14 @@ Une grande bulle en bas affiche L, R, carré, triangle et rond. Chaque nouvelle 
 ## Cinq lignes (version 0.3.4)
 
 La bulle affiche cinq lignes horizontales : L, R, carré, triangle et rond. Chaque note jouée traverse sa ligne à vitesse constante (250 pixels/seconde), puis disparaît à gauche, même sans autre appui. Les libellés restent fixes à gauche. L’ancien historique est masqué ; le clavier, la manette et les options restent actifs. Patch Pokéball : `patches/cinq-lignes.json`.
+
+## Affichage des touches (version 0.4.0)
+
+Dans Options, choisir PS5, N64, Clavier ou Switch. Le choix reste enregistré sur ce PC. Les sons et les associations manette restent inchangés. Les notes déjà en mouvement gardent le symbole affiché au moment de l’appui. Les libellés des lignes et les nouvelles notes suivent le mode choisi.
+
+- N64 : Ré=A, Fa=C↓, La=C→, Si=C←, Ré aigu=C↑, selon l’ocarina de N64.
+- PS5 : affiche les boutons correspondant à l’association de la manette sélectionnée dans le réglage manette (L1, R1, carré, triangle et rond par défaut). Les boutons non identifiés sont numérotés.
+- Clavier : affiche les cinq raccourcis effectifs et permet de les changer (lettres ou chiffres uniques).
+- Switch : Ré=L, Fa=R, La=X, Si=Y, Ré aigu=A. Ce choix est visuel : utiliser « Associer les touches » pour modifier les boutons physiques.
+
+Le patch `patches/affichage-touches.json` s’applique après le patch des cinq lignes.

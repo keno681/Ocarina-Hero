@@ -1,4 +1,72 @@
 'use strict';
+window.ocarinaSymbols = ['L', 'R', '□', '△', '○'];
+document.addEventListener('DOMContentLoaded', () => queueMicrotask(() => {
+  if (document.getElementById('display-mode')) return;
+  const panel = document.createElement('section');
+  panel.style.cssText = 'margin:20px 0;padding:16px;border:1px solid #93a18a;border-radius:12px;background:#f5f3e9;color:#263d39;text-align:left;font:14px Arial';
+  panel.innerHTML = '<label for="display-mode">Affichage des touches</label> <select id="display-mode"><option value="ps5">PS5</option><option value="n64">N64</option><option value="keyboard">Clavier</option><option value="switch">Switch</option></select><p id="display-keys" style="line-height:1.7"></p><div id="keyboard-settings" hidden>Touches clavier : <span id="keyboard-fields"></span><p>Choisissez cinq touches différentes. Les sons ne changent pas.</p></div>';
+  (document.querySelector('.instrument') || document.querySelector('main')).appendChild(panel);
+  const select = panel.querySelector('#display-mode');
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem('ocarina-display') || '{}') || {}; } catch (_) {}
+  const modes = ['ps5', 'n64', 'keyboard', 'switch'];
+  select.value = modes.includes(saved.mode) ? saved.mode : 'ps5';
+  if (Array.isArray(saved.keys) && saved.keys.length === 5 && saved.keys.every(k => typeof k === 'string' && /^[a-z0-9]$/.test(k)) && new Set(saved.keys).size === 5) shortcuts.splice(0,5,...saved.keys);
+  const fields = shortcuts.map((key, i) => {
+    const field = document.createElement('input');
+    field.value = key.toUpperCase(); field.maxLength = 1;
+    field.setAttribute('aria-label', ['Ré', 'Fa', 'La', 'Si', 'Ré aigu'][i]);
+    field.style.cssText = 'width:38px;margin:4px;padding:8px;text-align:center';
+    panel.querySelector('#keyboard-fields').appendChild(field);
+    return field;
+  });
+  function save() {
+    try { localStorage.setItem('ocarina-display', JSON.stringify({mode:select.value,keys:shortcuts})); } catch (_) {}
+  }
+  let last = '';
+  function update() {
+    let labels;
+    if (select.value === 'keyboard') labels = shortcuts.map(k => k.toUpperCase());
+    else if (select.value === 'n64') labels = ['A', 'C↓', 'C→', 'C←', 'C↑'];
+    else if (select.value === 'switch') labels = ['L', 'R', 'X', 'Y', 'A'];
+    else {
+      let mapping = [4,5,2,3,1];
+      try {
+        const pads = Array.from(navigator.getGamepads?.() || []).filter(Boolean);
+        const chosen = Number(document.getElementById('pad-select')?.value);
+        const pad = pads.find(p => p.index === chosen) || pads[0];
+        const mappings = JSON.parse(localStorage.getItem('ocarina-gamepad-mappings') || '{}');
+        const configured = pad && mappings[pad.id];
+        if (Array.isArray(configured) && configured.length === 5 && configured.every(Number.isInteger)) mapping = configured;
+      } catch (_) {}
+      const ps = ['✕','○','□','△','L1','R1','L2','R2','Créer','Options','L3','R3','↑','↓','←','→','PS','Pavé'];
+      labels = mapping.map(n => ps[n] || 'B' + (n + 1));
+    }
+    window.ocarinaSymbols.splice(0,5,...labels);
+    panel.querySelector('#keyboard-settings').hidden = select.value !== 'keyboard';
+    const key = select.value + labels.join('|');
+    if (key === last) return;
+    last = key;
+    panel.querySelector('#display-keys').textContent = ['Ré','Fa','La','Si','Ré ↑'].map((note,i) => note + ' : ' + labels[i]).join(' · ');
+    document.querySelectorAll('#note-lanes .lane-label').forEach((el,i) => { el.textContent = labels[i]; el.setAttribute('aria-label',labels[i]); el.style.fontSize = '23px'; });
+    document.querySelectorAll('.note .symbol').forEach((el,i) => { el.textContent = labels[i]; });
+    document.querySelectorAll('.note kbd').forEach((el,i) => { el.textContent = shortcuts[i].toUpperCase(); });
+    document.querySelectorAll('.note').forEach((el,i) => { el.setAttribute('aria-label',labels[i] + ', clavier ' + shortcuts[i].toUpperCase()); });
+  }
+  fields.forEach((field,i) => field.onchange = () => {
+    const key = field.value.toLowerCase();
+    if (!/^[a-z0-9]$/.test(key) || shortcuts.some((k,j) => i !== j && k === key)) {
+      field.value = shortcuts[i].toUpperCase();
+      panel.querySelector('#display-keys').textContent = 'Choisissez une lettre ou un chiffre non utilisé.';
+      return;
+    }
+    shortcuts[i] = key; field.value = key.toUpperCase(); save(); update();
+  });
+  select.onchange = () => { save(); update(); };
+  update();
+  setInterval(update,500);
+}));
+
 document.addEventListener('DOMContentLoaded', () => {
   if (document.getElementById('note-lanes')) return;
   const style = document.createElement('style');
@@ -7,7 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const box = document.createElement('section');
   box.id = 'note-lanes';
   box.setAttribute('aria-label', 'Notes jouées sur cinq lignes, défilement continu');
-  const symbols = ['L', 'R', '□', '△', '○'];
+  const symbols = window.ocarinaSymbols;
   const names = ['L', 'R', 'Carré', 'Triangle', 'Rond'];
   const colors = ['#e8dfc6', '#d7dfef', '#e5a0c9', '#9ed9b1', '#f1a08e'];
   const tracks = symbols.map((symbol, index) => {
