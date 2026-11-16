@@ -1,0 +1,11 @@
+{
+  "format": "ocarina-patch-v1",
+  "title": "Masquer la bulle dans les options",
+  "files": [
+    {
+      "path": "style.css",
+      "old": ":root{",
+      "new": "body.options-open #note-lanes,body.options-open #note-dialogue{display:none!important}\n:root{"
+    }
+  ]
+}
