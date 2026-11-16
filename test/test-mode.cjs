@@ -1,10 +1,10 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs');
-function setup(lateLanes=false,shifted=false,gated=false,penalty=false){
+function setup(lateLanes=false,shifted=false,gated=false,penalty=false,navigation=false){
  const played=[];
  const timers=new Map();let timerId=0;let lanesReady=!lateLanes;
  const nodes=new Map(),events={},classes=new Set();let now=0,tick,active=false;
- function el(){return {children:[],style:{},clientWidth:500,offsetWidth:40,value:'',textContent:'',appendChild(item){item.parent=this;this.children.push(item);},remove(){if(this.parent){this.parent.children=this.parent.children.filter(n=>n!==this);this.parent=null;}},querySelector(selector){if(!nodes.has(selector))nodes.set(selector,el());return nodes.get(selector);},getBoundingClientRect(){const x=this.motion ? this.motion.from - (now-this.motion.start)*0.25 : 0;return {left:x,right:x+40};},animate(frames){this.motion={from:Number(frames[0].transform.match(/[-0-9.]+/)[0]),start:now};return {cancel(){}};}};}
+ function el(){return {children:[],attributes:{},setAttribute(name,value){this.attributes[name]=value;},style:{},clientWidth:500,offsetWidth:40,value:'',textContent:'',appendChild(item){item.parent=this;this.children.push(item);},remove(){if(this.parent){this.parent.children=this.parent.children.filter(n=>n!==this);this.parent=null;}},querySelector(selector){if(!nodes.has(selector))nodes.set(selector,el());return nodes.get(selector);},getBoundingClientRect(){const x=this.motion ? this.motion.from - (now-this.motion.start)*0.25 : 0;return {left:x,right:x+40};},animate(frames){this.motion={from:Number(frames[0].transform.match(/[-0-9.]+/)[0]),start:now};return {cancel(){}};}};}
  const tracks=Array.from({length:5},el),box=el();box.querySelectorAll=()=>tracks;
  const body=el();body.classList={contains:name=>classes.has(name),toggle:(name,on)=>on?classes.add(name):classes.delete(name)};
  const barStyles=new Map();
@@ -16,8 +16,9 @@ function setup(lateLanes=false,shifted=false,gated=false,penalty=false){
  if(shifted){for(const op of JSON.parse(fs.readFileSync('patches/barre-continue-retour.json','utf8')).files.slice(1))source=source.replace(op.old,op.new);}
  if(gated){const op=JSON.parse(fs.readFileSync('patches/test-zone-obligatoire.json','utf8')).files[0];source=source.replace(op.old,op.new);}
  if(penalty){for(const op of JSON.parse(fs.readFileSync('patches/penalite-appui.json','utf8')).files)source=source.replace(op.old,op.new);}
+ if(navigation){const op=JSON.parse(fs.readFileSync('patches/modes-a-gauche.json','utf8')).files[0];source=source.replace(op.old,op.new);}
  vm.createContext(ctx);vm.runInContext(source,ctx);events.DOMContentLoaded();lanesReady=true;flushTimers();
- return {ctx,nodes,classes,played,barStyles,advance(time){now=time;flushTimers();if(active)tick();},get active(){return active;}};
+ return {ctx,nodes,classes,played,barStyles,body,advance(time){now=time;flushTimers();if(active)tick();},get active(){return active;}};
 }
 test('timing windows distinguish perfect, good and incorrect hits',()=>{
  const {ctx}=setup();assert.equal(ctx.ocarinaTimingJudge(-90),'Parfait');assert.equal(ctx.ocarinaTimingJudge(150),'Bien');assert.equal(ctx.ocarinaTimingJudge(181),null);
@@ -79,4 +80,15 @@ test('changing mode clears penalty and free mode remains playable',()=>{
  s.ctx.input(1);assert.equal(s.barStyles.get('background'),'#080808');mode.value='free';mode.onchange();
  assert.equal(s.barStyles.has('background'),false);s.ctx.input(1);assert.deepEqual(s.played,[1]);
  mode.value='test';mode.onchange();s.nodes.get('#test-start').onclick();s.advance(1580);s.ctx.input(0);assert.deepEqual(s.played,[1,0]);
+});
+
+test('main-screen mode buttons switch the mode, show selection and stop an active test',()=>{
+ const s=setup(false,false,false,false,true);
+ const menu=s.body.children.find(node=>node.id==='main-game-modes');assert.ok(menu);
+ const [free,testButton]=menu.children;
+ assert.equal(free.textContent,'Libre');assert.equal(testButton.textContent,'Test');
+ assert.equal(free.attributes['aria-pressed'],'true');
+ testButton.onclick();assert.ok(s.classes.has('test-mode'));assert.equal(testButton.attributes['aria-pressed'],'true');
+ s.nodes.get('#test-start').onclick();assert.equal(s.active,true);
+ free.onclick();assert.equal(s.active,false);assert.equal(s.classes.has('test-mode'),false);assert.equal(free.attributes['aria-pressed'],'true');
 });

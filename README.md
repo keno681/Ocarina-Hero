@@ -114,3 +114,7 @@ En mode Test, les appuis ne jouent un son et ne déclenchent le retour visuel qu
 ## Pénalité sur appui inutile
 
 En mode Test actif, une mauvaise touche ou un appui hors de la zone rend la barre noire et bloque tous les appuis pendant 400 ms, sans modifier le score. Le défilement continue. Les appuis pendant le blocage ne prolongent pas sa durée. La barre redevient jaune ensuite. Relancer le test, changer de mode ou interrompre la partie réinitialise le blocage. Le mode Libre reste inchangé. Patch : `patches/penalite-appui.json`.
+
+## Choix du mode sur l’écran principal
+
+Deux boutons Libre et Test sont affichés à gauche du jeu. Le mode actif est surligné en jaune. Ils remplacent le choix du mode dans Options et conservent la mémorisation et l’arrêt de la partie lors d’un changement de mode. Le bouton Lancer le test reste dans la bulle. Patch : `patches/modes-a-gauche.json`.

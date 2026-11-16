@@ -1,0 +1,11 @@
+{
+  "format": "ocarina-patch-v1",
+  "title": "Boutons Libre et Test à gauche du jeu",
+  "files": [
+    {
+      "path": "app.js",
+      "old": "  mode.onchange = applyMode;",
+      "new": "  options.hidden = true;\n  const modeMenu = document.createElement('nav');\n  modeMenu.id = 'main-game-modes';\n  modeMenu.setAttribute('aria-label','Mode de jeu');\n  modeMenu.style.cssText = 'position:fixed;left:20px;top:100px;z-index:1000;display:flex;flex-direction:column;gap:10px';\n  const modeButtons = ['free','test'].map(value => {\n    const button = document.createElement('button');\n    button.textContent = value === 'free' ? 'Libre' : 'Test';\n    button.style.cssText = 'min-width:110px;padding:13px 22px;border:1px solid #d8caa8;border-radius:14px;font:16px Arial;cursor:pointer;box-shadow:0 4px 18px #0004';\n    button.onclick = () => { mode.value = value; mode.onchange(); };\n    modeMenu.appendChild(button);\n    return {button,value};\n  });\n  function syncModeButtons() {\n    for (const {button,value} of modeButtons) {\n      const active = mode.value === value;\n      button.setAttribute('aria-pressed',String(active));\n      button.style.background = active ? '#ffe469' : '#17251cdd';\n      button.style.color = active ? '#49360b' : '#fff1ce';\n    }\n  }\n  mode.onchange = () => { applyMode(); syncModeButtons(); };\n  document.body.appendChild(modeMenu);\n  syncModeButtons();"
+    }
+  ]
+}

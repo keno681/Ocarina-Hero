@@ -179,7 +179,30 @@ document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
     feedback.textContent = mode.value === 'test' ? '8 notes à jouer sur la barre jaune.' : 'Jouez à votre rythme.';
     try { localStorage.setItem('ocarina-game-mode',mode.value); } catch (_) {}
   }
-  mode.onchange = applyMode;
+  options.hidden = true;
+  const modeMenu = document.createElement('nav');
+  modeMenu.id = 'main-game-modes';
+  modeMenu.setAttribute('aria-label','Mode de jeu');
+  modeMenu.style.cssText = 'position:fixed;left:20px;top:100px;z-index:1000;display:flex;flex-direction:column;gap:10px';
+  const modeButtons = ['free','test'].map(value => {
+    const button = document.createElement('button');
+    button.textContent = value === 'free' ? 'Libre' : 'Test';
+    button.style.cssText = 'min-width:110px;padding:13px 22px;border:1px solid #d8caa8;border-radius:14px;font:16px Arial;cursor:pointer;box-shadow:0 4px 18px #0004';
+    button.onclick = () => { mode.value = value; mode.onchange(); };
+    modeMenu.appendChild(button);
+    return {button,value};
+  });
+  function syncModeButtons() {
+    for (const {button,value} of modeButtons) {
+      const active = mode.value === value;
+      button.setAttribute('aria-pressed',String(active));
+      button.style.background = active ? '#ffe469' : '#17251cdd';
+      button.style.color = active ? '#49360b' : '#fff1ce';
+    }
+  }
+  mode.onchange = () => { applyMode(); syncModeButtons(); };
+  document.body.appendChild(modeMenu);
+  syncModeButtons();
   window.addEventListener('blur', () => { if(running) { clearRound(); feedback.textContent = 'Test interrompu. Relancez quand vous êtes prêt.'; } });
   window.addEventListener('resize', () => { if(running) { clearRound(); feedback.textContent = 'Taille modifiée : relancez le test.'; } });
   applyMode();
