@@ -13,7 +13,7 @@ document.addEventListener('DOMContentLoaded', () => queueMicrotask(() => {
     timers.set(index, setTimeout(() => {
       label.classList.remove('note-glow');
       timers.delete(index);
-    }, 280));
+    }, 90));
   };
 }));
 

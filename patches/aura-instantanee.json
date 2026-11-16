@@ -1,0 +1,21 @@
+{
+  "format": "ocarina-patch-v1",
+  "title": "Aura instantanée et rapide",
+  "files": [
+    {
+      "path": "app.js",
+      "old": "}, 280));",
+      "new": "}, 90));"
+    },
+    {
+      "path": "style.css",
+      "old": "transition:box-shadow .12s,background .12s,transform .12s",
+      "new": "transition:none"
+    },
+    {
+      "path": "style.css",
+      "old": "animation:ocarina-note-aura .35s ease-out",
+      "new": "animation:ocarina-note-aura .09s ease-out"
+    }
+  ]
+}

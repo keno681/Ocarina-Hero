@@ -85,4 +85,4 @@ Les lignes sont affichées du plus aigu au plus grave, de haut en bas : Ré aigu
 
 ## Aura jaune
 
-À chaque note, la touche fixe s’illumine en jaune et se réduit légèrement pendant 280 ms. Un nouvel appui sur la même touche renouvelle cet effet. La note défilante reçoit aussi un bref éclat. Clavier et manette partagent cet effet. Patch : `patches/aura-jaune.json`.
+À chaque note, la touche fixe s’illumine en jaune et se réduit légèrement pendant 90 ms, sans transition. Un nouvel appui sur la même touche renouvelle cet effet. La note défilante reçoit aussi un bref éclat. Clavier et manette partagent cet effet. Patch : `patches/aura-jaune.json`.
