@@ -1,0 +1,21 @@
+{
+  "format": "ocarina-patch-v1",
+  "title": "Barre continue décalée et vibration de réussite",
+  "files": [
+    {
+      "path": "app.js",
+      "old": "'use strict';",
+      "new": "'use strict';\nwindow.ocarinaHitFeedback = function(verdict) {\n  const bar = document.getElementById('hit-bar');\n  bar?.animate([{background:'#fff',boxShadow:'0 0 20px #fff,0 0 55px #ffdf40',transform:'scaleX(2.4)'},{background:'#ffdf40',boxShadow:'0 0 10px #ffe35c,0 0 24px #ffce32',transform:'scaleX(1)'}],{duration:180,easing:'ease-out'});\n  try {\n    const pads = Array.from(navigator.getGamepads?.() || []).filter(Boolean);\n    const index = Number(document.getElementById('pad-select')?.value);\n    const pad = pads.find(p => p.buttons.some(b => b.pressed)) || pads.find(p => p.index === index) || pads[0];\n    if (pad?.vibrationActuator?.playEffect) Promise.resolve(pad.vibrationActuator.playEffect('dual-rumble',{startDelay:0,duration:70,weakMagnitude:0.4,strongMagnitude:verdict === 'Parfait' ? 0.3 : 0.15})).catch(() => {});\n    else if (pad?.hapticActuators?.[0]?.pulse) Promise.resolve(pad.hapticActuators[0].pulse(0.4,70)).catch(() => {});\n  } catch (_) {}\n};\ndocument.addEventListener('DOMContentLoaded', () => setTimeout(() => {\n  const box = document.getElementById('note-lanes');\n  if (!box || document.getElementById('hit-bar')) return;\n  const style = document.createElement('style');\n  style.textContent = '#note-lanes .lane-track:before{display:none!important}#hit-bar{position:absolute;width:4px;border-radius:4px;background:#ffdf40;box-shadow:0 0 10px #ffe35c,0 0 24px #ffce32;z-index:6;pointer-events:none}';\n  document.head.appendChild(style);\n  const bar = document.createElement('div'); bar.id = 'hit-bar'; bar.setAttribute('aria-hidden','true'); box.appendChild(bar);\n  function place() {\n    const tracks = Array.from(box.querySelectorAll('.lane-track'));\n    if (!tracks.length || !box.offsetWidth) return;\n    const outer = box.getBoundingClientRect(), rects = tracks.map(track => track.getBoundingClientRect());\n    const top = Math.min(...rects.map(r => r.top)), bottom = Math.max(...rects.map(r => r.bottom));\n    bar.style.left = (rects[0].left - outer.left - box.clientLeft + tracks[0].clientWidth * 0.22) + 'px';\n    bar.style.top = (top - outer.top - box.clientTop) + 'px';\n    bar.style.height = (bottom - top) + 'px';\n  }\n  place();\n  if (window.ResizeObserver) new ResizeObserver(place).observe(box);\n  window.addEventListener('resize',place);\n  new MutationObserver(place).observe(document.body,{attributes:true,attributeFilter:['class']});\n}));\n"
+    },
+    {
+      "path": "app.js",
+      "old": "at:now + (from - 7)/0.25",
+      "new": "at:now + (from - (track.clientWidth * 0.22 + 2 - chip.offsetWidth / 2))/0.25"
+    },
+    {
+      "path": "app.js",
+      "old": "report(verdict + ' !'); finishIfReady();",
+      "new": "window.ocarinaHitFeedback?.(verdict); report(verdict + ' !'); finishIfReady();"
+    }
+  ]
+}

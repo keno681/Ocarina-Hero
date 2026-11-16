@@ -98,3 +98,7 @@ Le patch `patches/manette-par-note.json` fonctionne avec les anciennes versions 
 Une barre jaune lumineuse marque le point d’appui sur les cinq lignes. Options → Mode de jeu permet de choisir Libre ou Test. Libre conserve le fonctionnement habituel. Test propose huit notes aléatoires : fermer Options puis cliquer sur « Lancer le test ». Appuyer sur la bonne touche lorsque le centre de la note atteint la barre. Parfait : ±90 ms, 100 points ; Bien : ±180 ms, 60 points ; un appui hors timing ou incorrect retire 10 points sans passer sous zéro. Les notes manquées sont comptabilisées. Le test se termine après les huit notes et peut être rejoué.
 
 Ouvrir Options, quitter la fenêtre ou redimensionner le jeu interrompt la partie afin de préserver le timing. Le mode choisi est conservé, mais aucune partie ne démarre automatiquement. Les boutons conservent les associations et le mode d’affichage choisis. Patch : `patches/mode-test.json`.
+
+## Barre continue et retour de réussite
+
+La barre lumineuse traverse les cinq lignes et se situe à 22 % de la piste, après les libellés. Le timing est recalculé pour cette position. Chaque réussite déclenche un flash de 180 ms sur la barre et une vibration de 70 ms si le navigateur, le pilote et la manette prennent en charge les vibrations. La position de la barre suit les dimensions du panneau. Patch : `patches/barre-continue-retour.json`.

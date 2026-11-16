@@ -1,4 +1,37 @@
 'use strict';
+window.ocarinaHitFeedback = function(verdict) {
+  const bar = document.getElementById('hit-bar');
+  bar?.animate([{background:'#fff',boxShadow:'0 0 20px #fff,0 0 55px #ffdf40',transform:'scaleX(2.4)'},{background:'#ffdf40',boxShadow:'0 0 10px #ffe35c,0 0 24px #ffce32',transform:'scaleX(1)'}],{duration:180,easing:'ease-out'});
+  try {
+    const pads = Array.from(navigator.getGamepads?.() || []).filter(Boolean);
+    const index = Number(document.getElementById('pad-select')?.value);
+    const pad = pads.find(p => p.buttons.some(b => b.pressed)) || pads.find(p => p.index === index) || pads[0];
+    if (pad?.vibrationActuator?.playEffect) Promise.resolve(pad.vibrationActuator.playEffect('dual-rumble',{startDelay:0,duration:70,weakMagnitude:0.4,strongMagnitude:verdict === 'Parfait' ? 0.3 : 0.15})).catch(() => {});
+    else if (pad?.hapticActuators?.[0]?.pulse) Promise.resolve(pad.hapticActuators[0].pulse(0.4,70)).catch(() => {});
+  } catch (_) {}
+};
+document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
+  const box = document.getElementById('note-lanes');
+  if (!box || document.getElementById('hit-bar')) return;
+  const style = document.createElement('style');
+  style.textContent = '#note-lanes .lane-track:before{display:none!important}#hit-bar{position:absolute;width:4px;border-radius:4px;background:#ffdf40;box-shadow:0 0 10px #ffe35c,0 0 24px #ffce32;z-index:6;pointer-events:none}';
+  document.head.appendChild(style);
+  const bar = document.createElement('div'); bar.id = 'hit-bar'; bar.setAttribute('aria-hidden','true'); box.appendChild(bar);
+  function place() {
+    const tracks = Array.from(box.querySelectorAll('.lane-track'));
+    if (!tracks.length || !box.offsetWidth) return;
+    const outer = box.getBoundingClientRect(), rects = tracks.map(track => track.getBoundingClientRect());
+    const top = Math.min(...rects.map(r => r.top)), bottom = Math.max(...rects.map(r => r.bottom));
+    bar.style.left = (rects[0].left - outer.left - box.clientLeft + tracks[0].clientWidth * 0.22) + 'px';
+    bar.style.top = (top - outer.top - box.clientTop) + 'px';
+    bar.style.height = (bottom - top) + 'px';
+  }
+  place();
+  if (window.ResizeObserver) new ResizeObserver(place).observe(box);
+  window.addEventListener('resize',place);
+  new MutationObserver(place).observe(document.body,{attributes:true,attributeFilter:['class']});
+}));
+
 window.ocarinaTimingJudge = delta => Math.abs(delta) <= 90 ? 'Parfait' : Math.abs(delta) <= 180 ? 'Bien' : null;
 document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
   if (document.getElementById('game-mode')) return;
@@ -39,7 +72,7 @@ document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
     track.appendChild(chip);
     const from = track.clientWidth + 8;
     const animation = chip.animate([{transform:'translateX(' + from + 'px)'},{transform:'translateX(-48px)'}],{duration:(from + 48)/0.25,easing:'linear',fill:'forwards'});
-    const target = {note,chip,animation,at:now + (from - 7)/0.25,done:false};
+    const target = {note,chip,animation,at:now + (from - (track.clientWidth * 0.22 + 2 - chip.offsetWidth / 2))/0.25,done:false};
     animation.onfinish = () => {
       if (running && !target.done) { target.done = true; judged++; report('Raté'); finishIfReady(); }
       chip.remove(); targets = targets.filter(t => t !== target);
@@ -77,7 +110,7 @@ document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
     if (!verdict) { score = Math.max(0,score-10); report('Hors timing ou mauvaise touche'); return; }
     target.done = true; judged++; correct++; score += verdict === 'Parfait' ? 100 : 60;
     target.animation.cancel(); target.chip.remove(); targets = targets.filter(t => t !== target);
-    report(verdict + ' !'); finishIfReady();
+    window.ocarinaHitFeedback?.(verdict); report(verdict + ' !'); finishIfReady();
   };
   function applyMode() {
     clearRound(); document.body.classList.toggle('test-mode',mode.value === 'test');
