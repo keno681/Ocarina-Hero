@@ -20,3 +20,22 @@ test('disconnect clears state and reconnect works', () => {
   assert.equal(disconnected.next.size,0);
   assert.deepEqual(edges([pad([4])],disconnected.next,{}).notes,[0]);
 });
+test('polling recovers after a temporary API error', () => {
+  const vm = require('node:vm'), fs = require('node:fs');
+  const elements = new Map();
+  const element = id => {
+    if(!elements.has(id)) elements.set(id,{textContent:'',value:'',style:{},setAttribute(){},appendChild(){},replaceChildren(){}});
+    return elements.get(id);
+  };
+  const panel = element('panel'); panel.querySelector = element;
+  let frame, fail = true;
+  const context = {
+    document: { createElement:()=>panel, querySelector:()=>element('instrument'), hasFocus:()=>true },
+    navigator: {getGamepads(){if(fail)throw new Error('Temporary');return [];}},
+    localStorage:{getItem:()=>null},requestAnimationFrame:fn=>{frame=fn;},addEventListener(){}
+  };
+  vm.runInNewContext(fs.readFileSync(require.resolve('../gamepad'),'utf8'),context);
+  frame();assert.match(element('#pad-status').textContent,/refusé/);
+  fail=false;frame();assert.match(element('#pad-status').textContent,/Aucune manette/);
+  assert.equal(typeof frame,'function');
+});

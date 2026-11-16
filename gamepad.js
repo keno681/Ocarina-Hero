@@ -21,7 +21,7 @@
   const panel = document.createElement('section');
   panel.setAttribute('aria-label', 'Manettes');
   panel.style.cssText = 'margin:20px auto 0;max-width:650px;padding:14px;border:1px solid #93a18a;border-radius:12px;background:#f5f3e9;color:#263d39;font:12px Arial;text-align:left';
-  panel.innerHTML = '<div id="pad-status" role="status" aria-live="polite"></div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"><select id="pad-select" aria-label="Manette" style="max-width:100%;flex:1"></select><button id="pad-config">Associer les touches</button><button id="pad-cancel" hidden>Annuler</button><button id="pad-audio">Activer le son</button></div><p id="pad-help" style="line-height:1.5;margin-bottom:0">Branchez une manette USB ou connectez-la en Bluetooth dans Windows, puis appuyez sur un bouton. L/L1/LB · R/R1/RB · □/X · △/Y · ○/B.</p>';
+  panel.innerHTML = '<div id="pad-status" role="status" aria-live="polite"></div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"><select id="pad-select" aria-label="Manette" style="max-width:100%;flex:1"></select><button id="pad-scan">Rechercher les manettes</button><button id="pad-config">Associer les touches</button><button id="pad-cancel" hidden>Annuler</button><button id="pad-audio">Activer le son</button></div><p id="pad-help" style="line-height:1.5;margin-bottom:0">Branchez une manette USB ou connectez-la en Bluetooth dans Windows, puis appuyez sur un bouton. L/L1/LB · R/R1/RB · □/X · △/Y · ○/B.</p>';
   (document.querySelector('.instrument') || document.body).appendChild(panel);
   const find = id => panel.querySelector('#' + id);
   let previous = new Map(), signature = '', mappings = {}, capture = null;
@@ -47,10 +47,22 @@
     capture = null; find('pad-cancel').hidden = true;
     find('pad-help').textContent = 'Association annulée. Les réglages précédents sont conservés.';
   };
+  function diagnostics() {
+    const api = typeof navigator.getGamepads === 'function';
+    find('pad-help').textContent = `API manette : ${api ? 'disponible' : 'indisponible'} · Fenêtre : ${document.hasFocus() ? 'active' : 'inactive'} · Application : 0.2.1. Cliquez dans le jeu puis appuyez sur un bouton de la manette. Si elle reste absente, faites Windows + R, tapez joy.cpl et vérifiez qu’elle apparaît et que ses boutons réagissent.`;
+  }
+  find('pad-scan').onclick = () => { signature = ''; previous.clear(); diagnostics(); };
+  root.addEventListener('gamepadconnected', () => { signature = ''; });
+  root.addEventListener('gamepaddisconnected', () => { signature = ''; });
   function poll() {
+    try {
+    if (typeof navigator.getGamepads !== 'function') {
+      find('pad-status').textContent = 'Cette application ne fournit pas l’accès aux manettes.';
+      return;
+    }
     let pads;
     try { pads = Array.from(navigator.getGamepads?.() || []).filter(p => p && p.connected !== false); }
-    catch (_) { find('pad-status').textContent = 'Accès aux manettes indisponible.'; return; }
+    catch (error) { find('pad-status').textContent = `Accès aux manettes refusé (${error.name}). Cliquez sur Rechercher les manettes pour afficher le diagnostic.`; return; }
     const key = pads.map(p => `${p.index}:${p.id}:${p.mapping}`).join('|');
     if (key !== signature || !find('pad-status').textContent) {
       signature = key;
@@ -87,7 +99,11 @@
       for (const note of result.notes) notes[note]?.click();
     }
     previous = result.next;
-    root.requestAnimationFrame(poll);
+    } catch (error) {
+      find('pad-status').textContent = `Lecture interrompue (${error.name}). Nouvelle tentative automatique…`;
+    } finally {
+      root.requestAnimationFrame(poll);
+    }
   }
   root.requestAnimationFrame(poll);
 })(globalThis);
