@@ -102,3 +102,7 @@ Ouvrir Options, quitter la fenêtre ou redimensionner le jeu interrompt la parti
 ## Barre continue et retour de réussite
 
 La barre lumineuse traverse les cinq lignes et se situe à 22 % de la piste, après les libellés. Le timing est recalculé pour cette position. Chaque réussite déclenche un flash de 180 ms sur la barre et une vibration de 70 ms si le navigateur, le pilote et la manette prennent en charge les vibrations. La position de la barre suit les dimensions du panneau. Patch : `patches/barre-continue-retour.json`.
+
+## Réparation des installations ayant accumulé des doublons
+
+`patches/reparation-app-barre.json` remplace entièrement `app.js` par la version nettoyée comprenant un seul mode Test, la barre continue à 22 % de la piste et le retour de réussite. Ce bloc évite les remplacements ambigus des anciennes installations ayant empilé plusieurs copies du mode Test. Il conserve les préférences et associations stockées dans le navigateur et ne modifie ni `index.html` ni `style.css`. Il remplace les modifications de code locales éventuelles d’`app.js` ; la console sauvegarde la version précédente et permet l’annulation.
