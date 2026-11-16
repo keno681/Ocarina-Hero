@@ -1,4 +1,97 @@
 'use strict';
+window.ocarinaTimingJudge = delta => Math.abs(delta) <= 90 ? 'Parfait' : Math.abs(delta) <= 180 ? 'Bien' : null;
+document.addEventListener('DOMContentLoaded', () => queueMicrotask(() => {
+  if (document.getElementById('game-mode')) return;
+  const box = document.getElementById('note-lanes');
+  if (!box) return;
+  const style = document.createElement('style');
+  style.textContent = '#note-lanes .lane-track:before{content:"";position:absolute;left:24px;top:0;bottom:0;width:4px;border-radius:3px;background:#ffdf40;box-shadow:0 0 8px #ffe35c,0 0 20px #ffce32;z-index:5}body.test-mode #note-lanes .lane-note:not(.test-target){visibility:hidden}#test-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:12px;padding-bottom:12px;pointer-events:auto;font:13px Arial}#test-toolbar button{padding:8px 14px;border:1px solid #ffe35c;border-radius:10px;background:#e6c24a;color:#263020;cursor:pointer}#test-feedback{flex:1;min-width:180px}#note-lanes .test-target{animation:none;background:#4b4930;border-color:#ffe35c}';
+  document.head.appendChild(style);
+  const options = document.createElement('section');
+  options.style.cssText = 'margin-top:16px;padding:16px;border-radius:12px;background:#f5f3e9;color:#263d39;text-align:left';
+  options.innerHTML = '<label for="game-mode">Mode de jeu : </label><select id="game-mode"><option value="free">Libre</option><option value="test">Test</option></select><p>Test : appuyez quand le centre de la touche atteint la barre jaune. Fermez les options puis lancez le test.</p>';
+  (document.querySelector('.instrument') || document.querySelector('main')).appendChild(options);
+  const mode = options.querySelector('#game-mode');
+  try { mode.value = localStorage.getItem('ocarina-game-mode') === 'test' ? 'test' : 'free'; } catch (_) { mode.value = 'free'; }
+  const toolbar = document.createElement('div'); toolbar.id = 'test-toolbar';
+  toolbar.innerHTML = '<span id="test-mode-label"></span><button id="test-start">Lancer le test</button><span id="test-feedback" role="status" aria-live="polite"></span>';
+  box.appendChild(toolbar);
+  const start = toolbar.querySelector('#test-start'), feedback = toolbar.querySelector('#test-feedback');
+  const tracks = Array.from(box.querySelectorAll('.lane-track'));
+  let running = false, targets = [], clock = null, spawned = 0, judged = 0, correct = 0, score = 0, nextSpawn = 0;
+  const total = 8;
+  function clearRound() {
+    running = false; clearInterval(clock); clock = null;
+    for (const target of targets) { target.animation.cancel(); target.chip.remove(); }
+    targets = []; start.disabled = false;
+  }
+  function report(text) { feedback.textContent = text + ' · ' + correct + '/' + total + ' · Score ' + score; }
+  function finishIfReady() {
+    if (judged === total && spawned === total) {
+      running = false; clearInterval(clock); clock = null; start.disabled = false;
+      report('Terminé !'); start.textContent = 'Rejouer';
+    }
+  }
+  function spawn(now) {
+    const note = Math.floor(Math.random() * 5), track = tracks[note];
+    const chip = document.createElement('span'); chip.className = 'lane-note test-target';
+    chip.textContent = window.ocarinaSymbols?.[note] || ['L','R','□','△','○'][note];
+    track.appendChild(chip);
+    const from = track.clientWidth + 8;
+    const animation = chip.animate([{transform:'translateX(' + from + 'px)'},{transform:'translateX(-48px)'}],{duration:(from + 48)/0.25,easing:'linear',fill:'forwards'});
+    const target = {note,chip,animation,at:now + (from - 7)/0.25,done:false};
+    animation.onfinish = () => {
+      if (running && !target.done) { target.done = true; judged++; report('Raté'); finishIfReady(); }
+      chip.remove(); targets = targets.filter(t => t !== target);
+    };
+    targets.push(target); spawned++;
+  }
+  function tick() {
+    if (!running) return;
+    if (document.body.classList.contains('options-open') || !document.hasFocus()) {
+      clearRound(); feedback.textContent = 'Test interrompu. Relancez quand vous êtes prêt.'; return;
+    }
+    const now = performance.now();
+    if (spawned < total && now >= nextSpawn) { spawn(now); nextSpawn = now + 900; }
+    for (const target of targets) {
+      if (!target.done && now - target.at > 180) {
+        target.done = true; judged++; target.chip.style.opacity = '.25'; report('Raté');
+      }
+    }
+    finishIfReady();
+  }
+  start.onclick = () => {
+    if (document.body.classList.contains('options-open')) return;
+    try { context(); } catch (_) {}
+    clearRound(); spawned = judged = correct = score = 0;
+    running = true; start.disabled = true; nextSpawn = performance.now();
+    report('Préparez-vous…'); tick(); clock = setInterval(tick,25);
+  };
+  const original = input;
+  input = function(note) {
+    original(note);
+    if (mode.value !== 'test' || !running || document.body.classList.contains('options-open')) return;
+    const now = performance.now();
+    const target = targets.filter(t => !t.done && t.note === note).sort((a,b) => Math.abs(a.at-now)-Math.abs(b.at-now))[0];
+    const verdict = target && window.ocarinaTimingJudge(now - target.at);
+    if (!verdict) { score = Math.max(0,score-10); report('Hors timing ou mauvaise touche'); return; }
+    target.done = true; judged++; correct++; score += verdict === 'Parfait' ? 100 : 60;
+    target.animation.cancel(); target.chip.remove(); targets = targets.filter(t => t !== target);
+    report(verdict + ' !'); finishIfReady();
+  };
+  function applyMode() {
+    clearRound(); document.body.classList.toggle('test-mode',mode.value === 'test');
+    start.hidden = mode.value !== 'test';
+    toolbar.querySelector('#test-mode-label').textContent = mode.value === 'test' ? 'MODE TEST' : 'MODE LIBRE';
+    feedback.textContent = mode.value === 'test' ? '8 notes à jouer sur la barre jaune.' : 'Jouez à votre rythme.';
+    try { localStorage.setItem('ocarina-game-mode',mode.value); } catch (_) {}
+  }
+  mode.onchange = applyMode;
+  window.addEventListener('blur', () => { if(running) { clearRound(); feedback.textContent = 'Test interrompu. Relancez quand vous êtes prêt.'; } });
+  window.addEventListener('resize', () => { if(running) { clearRound(); feedback.textContent = 'Taille modifiée : relancez le test.'; } });
+  applyMode();
+}));
+
 document.addEventListener('DOMContentLoaded', () => queueMicrotask(() => {
   if (document.getElementById('note-bindings')) return;
   const panel = document.createElement('section');

@@ -92,3 +92,9 @@ Les lignes sont affichées du plus aigu au plus grave, de haut en bas : Ré aigu
 Dans Options, sélectionner la manette puis cliquer sur le bouton face à Ré grave, Fa, La, Si ou Ré aigu. Relâcher puis appuyer sur le bouton physique voulu. Le réglage est appliqué immédiatement et conservé par modèle de manette. Un bouton déjà utilisé échange ses deux notes pour conserver cinq associations distinctes. Annuler, déconnecter la manette ou quitter la fenêtre annule la capture. L’association ne joue pas de note.
 
 Le patch `patches/manette-par-note.json` fonctionne avec les anciennes versions du module manette : il remplace sa lecture des notes sans nécessiter un nouvel exécutable. Les clics physiques et le clavier restent disponibles.
+
+## Libre et Test (version 0.5.0)
+
+Une barre jaune lumineuse marque le point d’appui sur les cinq lignes. Options → Mode de jeu permet de choisir Libre ou Test. Libre conserve le fonctionnement habituel. Test propose huit notes aléatoires : fermer Options puis cliquer sur « Lancer le test ». Appuyer sur la bonne touche lorsque le centre de la note atteint la barre. Parfait : ±90 ms, 100 points ; Bien : ±180 ms, 60 points ; un appui hors timing ou incorrect retire 10 points sans passer sous zéro. Les notes manquées sont comptabilisées. Le test se termine après les huit notes et peut être rejoué.
+
+Ouvrir Options, quitter la fenêtre ou redimensionner le jeu interrompt la partie afin de préserver le timing. Le mode choisi est conservé, mais aucune partie ne démarre automatiquement. Les boutons conservent les associations et le mode d’affichage choisis. Patch : `patches/mode-test.json`.
