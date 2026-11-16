@@ -132,3 +132,9 @@ En Test, certaines notes ont une traînée de 900 ms. Attraper leur tête dans l
 Le moteur conserve une fondamentale dominante avec des harmoniques plus discrètes, une attaque légèrement soufflée, une courte montée vers la hauteur juste et un vibrato léger qui apparaît progressivement sur les notes tenues. Un bruit filtré simule l’air et une réponse de pièce de 180 ms ajoute une résonance discrète. Les sons courts et prolongés utilisent le même instrument. Les ressources audio sont générées localement et mises en cache par contexte : aucune connexion ni échantillon externe n’est nécessaire. Ce son reste une synthèse, pas un enregistrement d’ocarina.
 
 Validation : rendu réel des cinq notes par OfflineAudioContext dans Chromium, hauteurs contrôlées, pas d’écrêtage au niveau testé et extinction complète ; tests de maintien, relâchement et nettoyage des sources. Patch : `patches/son-ocarina.json` (remplacement complet d’app.js avec conservation des préférences enregistrées).
+
+## Timbre plus vivant (version 0.6.2)
+
+La seconde révision ajoute une résonance douce autour de la fondamentale, un souffle accordé à la note et une ouverture progressive du filtre pendant l’attaque. Une turbulence filtrée fait varier légèrement la pression et la hauteur des notes tenues ; la vitesse du vibrato et la phase du souffle varient aussi d’un appui à l’autre. Les cinq hauteurs de référence restent inchangées. Le son reste synthétisé, sans échantillon externe.
+
+Rendu des cinq notes contrôlé dans Chromium : hauteur, niveau et extinction. Patch complet : `patches/son-ocarina-v2.json`. Les préférences enregistrées et toutes les commandes sont conservées.

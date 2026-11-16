@@ -23,20 +23,25 @@ function ocarinaDestination(ctx) {
 function createOcarinaVoice(ctx, frequency, output, onended = () => {}) {
   const now = ctx.currentTime, nodes = [], sources = [];
   const toneFilter = ctx.createBiquadFilter();
-  toneFilter.type = 'lowpass'; toneFilter.frequency.value = Math.min(7500,frequency * 3.2); toneFilter.Q.value = .45;
-  toneFilter.connect(output); nodes.push(toneFilter);
+  toneFilter.type = 'lowpass'; toneFilter.Q.value = .5;
+  toneFilter.frequency.setValueAtTime(Math.min(6500,frequency * 1.8),now);
+  toneFilter.frequency.exponentialRampToValueAtTime(Math.min(7500,frequency * 3),now + .075);
+  const body = ctx.createBiquadFilter(), pressure = ctx.createGain();
+  body.type = 'peaking'; body.frequency.value = frequency * 1.03; body.Q.value = 1.1; body.gain.value = 1.3;
+  pressure.gain.value = 1;
+  toneFilter.connect(body).connect(pressure).connect(output); nodes.push(toneFilter,body,pressure);
   const vibrato = ctx.createOscillator(), depth = ctx.createGain();
-  vibrato.type = 'sine'; vibrato.frequency.value = 5.1;
+  vibrato.type = 'sine'; vibrato.frequency.value = 4.8 + Math.random() * .4;
   depth.gain.setValueAtTime(0,now);
   depth.gain.setValueAtTime(0,now + .18);
-  depth.gain.linearRampToValueAtTime(3,now + .55);
+  depth.gain.linearRampToValueAtTime(4.5,now + .65);
   vibrato.connect(depth); nodes.push(depth); sources.push(vibrato);
   [1,2,3].forEach((harmonic,i) => {
     const oscillator = ctx.createOscillator(), gain = ctx.createGain();
     oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(frequency * harmonic * .995,now);
-    oscillator.frequency.exponentialRampToValueAtTime(frequency * harmonic,now + .045);
-    gain.gain.value = [.96,.032,.009][i];
+    oscillator.frequency.setValueAtTime(frequency * harmonic * (.9935 + Math.random() * .001),now);
+    oscillator.frequency.exponentialRampToValueAtTime(frequency * harmonic,now + .055);
+    gain.gain.value = [.92,.046,.012][i];
     depth.connect(oscillator.detune);
     oscillator.connect(gain).connect(toneFilter); nodes.push(gain); sources.push(oscillator);
   });
@@ -53,14 +58,26 @@ function createOcarinaVoice(ctx, frequency, output, onended = () => {}) {
   breathGain.gain.setValueAtTime(.07,now);
   breathGain.gain.exponentialRampToValueAtTime(.024,now + .12);
   breath.connect(breathFilter).connect(breathGain).connect(output);
-  nodes.push(breathFilter,breathGain); sources.push(breath);
+  const cavity = ctx.createBiquadFilter(), cavityGain = ctx.createGain();
+  cavity.type = 'bandpass'; cavity.frequency.value = frequency; cavity.Q.value = 7;
+  cavityGain.gain.setValueAtTime(.09,now);
+  cavityGain.gain.exponentialRampToValueAtTime(.045,now + .16);
+  breath.connect(cavity).connect(cavityGain).connect(output);
+  // Filtered turbulence gently varies pitch and breath pressure rather than a second periodic vibrato.
+  const turbulence = ctx.createBiquadFilter(), pitchDrift = ctx.createGain(), pressureDrift = ctx.createGain();
+  turbulence.type = 'lowpass'; turbulence.frequency.value = 8; turbulence.Q.value = .5;
+  pitchDrift.gain.value = 70; pressureDrift.gain.value = 1.1;
+  breath.connect(turbulence); turbulence.connect(pitchDrift); turbulence.connect(pressureDrift).connect(pressure.gain);
+  for (const source of sources) if (source !== vibrato) pitchDrift.connect(source.detune);
+  nodes.push(breathFilter,breathGain,cavity,cavityGain,turbulence,pitchDrift,pressureDrift); sources.push(breath);
   let remaining = sources.length, stopped = false;
   for(const source of sources) {
     source.onended = () => {
       source.disconnect();
       if (--remaining === 0) { for(const node of nodes) node.disconnect(); onended(); }
     };
-    source.start(now);
+    if (source === breath) source.start(now,Math.random() * 1.5);
+    else source.start(now);
   }
   return { stop(at) { if (stopped) return; stopped = true; for(const source of sources) source.stop(at); } };
 }

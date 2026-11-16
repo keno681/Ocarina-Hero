@@ -10,7 +10,7 @@ function setup(){
 }
 test('ocarina voice combines mellow harmonics, delayed vibrato and filtered breath',()=>{
  const s=setup();let cleaned=0;const voice=s.ctx.createOcarinaVoice(s.audio,587.33,s.node('output'),()=>cleaned++);
- assert.equal(s.sources.length,5);assert.equal(s.sources[0].frequency.value,5.1);
+ assert.equal(s.sources.length,5);assert.ok(s.sources[0].frequency.value >= 4.8 && s.sources[0].frequency.value <= 5.2);
  const fundamental=s.sources[1];assert.equal(fundamental.frequency.events.at(-1).value,587.33);
  assert.ok(s.sources.some(source=>source.kind==='noise'&&source.loop));
  voice.stop(2);voice.stop(3);assert.ok(s.sources.every(source=>source.stops.length===1&&source.stops[0]===2));
